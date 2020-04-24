@@ -1,7 +1,8 @@
 import urllib.request
 import json
 import datetime
-import os, argparse
+import os
+import argparse
 
 
 def get_single_track_data_from_drf(track):
@@ -25,7 +26,7 @@ def get_single_track_data_from_drf(track):
     return data
 
 
-def get_track_list(request_date):
+def get_drf_track_list(request_date):
 
     # Get current track list
     drf_format_date = request_date.strftime("%m-%d-%Y")
@@ -37,7 +38,7 @@ def get_track_list(request_date):
     return track_data
 
 
-def save_single_track_data_to_file(data, save_dir):
+def save_single_track_drf_odds_data_to_file(data, save_dir):
 
     # Get necessary data
 
@@ -74,10 +75,10 @@ def save_single_track_data_to_file(data, save_dir):
         json.dump(data, outfile)
 
 
-def get_current_track_list():
+def get_current_drf_track_list():
 
     # Wrapper for the current time
-    return get_track_list(datetime.datetime.now())
+    return get_drf_track_list(datetime.datetime.now())
 
 
 if __name__ == '__main__':
@@ -110,13 +111,13 @@ if __name__ == '__main__':
             exit(1)
 
         # Get currently running tracks
-        track_data = get_current_track_list()
+        track_data = get_current_drf_track_list()
 
         # Iterate through tracks
         for current_track in track_data:
             race_data = get_single_track_data_from_drf(current_track)
             print(race_data)
-            save_single_track_data_to_file(race_data, base_data_dir)
+            save_single_track_drf_odds_data_to_file(race_data, base_data_dir)
 
     else:
         print(f'"{args.mode}" is not a valid operational mode!')
