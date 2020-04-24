@@ -66,7 +66,13 @@ def save_single_track_drf_odds_data_to_file(data, save_dir):
     track_id = data['raceKey']['trackId']
 
     # Assemble path
-    data_path = os.path.join(save_dir, track_id, str(race_datetime.year), str(race_datetime.month))
+    data_path = os.path.join(
+        save_dir,
+        track_id,
+        str(race_datetime.year),
+        str(race_datetime.month),
+        str(race_datetime.day)
+    )
     data_filepath = os.path.join(
         data_path,
         f'{track_id}_'
@@ -136,7 +142,12 @@ def save_single_track_drf_results_data_to_file(data, save_dir):
     track_id = first_race['raceKey']['trackId']
 
     # Assemble path
-    data_path = os.path.join(save_dir, track_id, str(race_datetime.year), str(race_datetime.month))
+    data_path = os.path.join(
+        save_dir, track_id,
+        str(race_datetime.year),
+        str(race_datetime.month),
+        str(race_datetime.day)
+    )
     data_filepath = os.path.join(
         data_path,
         f'{track_id}_'
