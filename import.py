@@ -195,8 +195,9 @@ if __name__ == '__main__':
 
         # Iterate through tracks
         for current_track in track_data:
-            race_data = get_single_track_data_from_drf(current_track)
-            save_single_track_drf_odds_data_to_file(race_data, base_data_dir)
+            if current_track['country'] == 'USA':
+                race_data = get_single_track_data_from_drf(current_track)
+                save_single_track_drf_odds_data_to_file(race_data, base_data_dir)
 
     elif args.mode in ('results', 'drf'):
 
