@@ -838,7 +838,6 @@ if __name__ == '__main__':
             odds_data = get_single_drf_odds_track_data_from_file(odds_file)
             current_scrape_time = datetime.datetime.fromisoformat(odds_data['drf_scrape']['time_scrape_utc'])
             load_drf_odds_data_into_database(odds_data, current_scrape_time, db_session)
-            break
 
         # Get list of results files to parse
         results_file_list = sorted(get_all_drf_results_json_filenames_from_storage(base_data_dir))
