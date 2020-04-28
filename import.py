@@ -50,6 +50,9 @@ def convert_drf_distance_description_to_furlongs(distance_string):
     elif len(split_description) == 4:
         distance = ureg(f'{split_description[0]} {split_description[1]}') + \
                    ureg(f'{split_description[2]} {split_description[3]}')
+    else:
+        print(f'Something really weird is with {distance_string.lower()}')
+        return 0
 
     # Error check conversion
     if not (distance.check('[length]')):
@@ -277,6 +280,9 @@ def load_drf_entry_data_into_database(runner, session, horse, race, finish_posit
 
 def load_drf_odds_entry_pool_data_into_database(runner, session, entry, scrape_time):
 
+    if runner['horseDataPools'] is None:
+        return
+
     for data_pool in runner['horseDataPools']:
 
         # Odds processing
@@ -377,8 +383,7 @@ def load_drf_probable_data_into_database(data, session, race, scrape_time):
         for probable_dict in data['wagerToteProbables'][probable_type]:
 
             if not isinstance(probable_dict, dict):
-                print(probable_dict)
-                print('that wasnt a valid probable dictionary')
+                # print(f'{probable_dict} is almost certainly a will pay which we do not care about')
                 continue
 
             # Create Entry Dict
@@ -831,10 +836,15 @@ if __name__ == '__main__':
 
         # Get list of odds files to parse
         odds_file_list = sorted(get_all_drf_odds_json_filenames_from_storage(base_data_dir))
-
+        wait_until_flag = ''
         # Load file into database
         for odds_file in odds_file_list:
             print(f'Working on {odds_file}')
+            if wait_until_flag != '':
+                if odds_file == wait_until_flag:
+                    wait_until_flag = ''
+                else:
+                    continue
             odds_data = get_single_drf_odds_track_data_from_file(odds_file)
             current_scrape_time = datetime.datetime.fromisoformat(odds_data['drf_scrape']['time_scrape_utc'])
             load_drf_odds_data_into_database(odds_data, current_scrape_time, db_session)
