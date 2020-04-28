@@ -3,6 +3,463 @@ import json
 import datetime
 import os
 import argparse
+from pytz import timezone
+from models import db_connect, Races, Horses, Entries, EntryPools, create_drf_live_table
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy import func
+from pint import UnitRegistry
+
+
+def s2f(x):
+    try:
+        return float(x)
+    except ValueError:
+        return 'NaN'
+
+
+def p2f(x):
+    try:
+        return float(x.strip('%'))/100
+    except ValueError:
+        return 'NaN'
+
+
+def convert_drf_distance_description_to_furlongs(distance_string):
+
+    # Load unit conversion
+    ureg = UnitRegistry()
+
+    # Distance Calcs
+    # Error check distance values
+    if distance_string == 'NaN':
+        return 0
+
+    # Split description up
+    split_description = distance_string.lower().split()
+    if len(split_description) == 2:
+        distance_string = distance_string.lower()
+        distance = ureg(distance_string)
+    elif len(split_description) == 3:
+        split_division = split_description[1].split('/')
+        if len(split_division) == 2:
+            split_number = float(split_description[0]) + (float(split_division[0]) / float(split_division[1]))
+            distance_string = f'{split_number} {split_description[2]}'
+            distance = ureg(distance_string)
+        else:
+            return 0
+    elif len(split_description) == 4:
+        distance = ureg(f'{split_description[0]} {split_description[1]}') + \
+                   ureg(f'{split_description[2]} {split_description[3]}')
+
+    # Error check conversion
+    if not (distance.check('[length]')):
+        print(f'Something is wrong with {distance_string}')
+        return 0
+
+    return distance.to(ureg.furlong).magnitude
+
+
+def load_drf_race_data_into_database(data, scrape_time, session):
+
+    # Create Race Dict
+    item = dict()
+
+    # Error Checking (malformed post_time)
+    if data['postTimeLong'] < 956861285000:
+
+        # Get post time string
+        if data['postTimeDisplay'] is not None:
+            post_time_string = data['postTimeDisplay']
+        elif data['postTime'] is not None:
+            post_time_string = data['postTime']
+        else:
+            print('both post time strings are bad')
+            return
+
+        # Strip out the components of the post time
+        post_time_time_part, post_time_am_pm = post_time_string.split(' ')
+        post_time_hour, post_time_minute = post_time_time_part.split(':')
+        if post_time_am_pm == 'PM':
+            if int(post_time_hour) < 12:
+                post_time_hour = int(post_time_hour) + 12
+            else:
+                post_time_hour = int(post_time_hour)
+        else:
+            if int(post_time_hour) < 12:
+                post_time_hour = int(post_time_hour)
+            else:
+                post_time_hour = int(post_time_hour) - 12
+        post_time_minute = int(post_time_minute)
+        if post_time_hour < 0 or post_time_hour > 23:
+             print(f'{post_time_string} is weird!')
+
+        # Get Time Zone
+        if data['timeZone'] != 'NaN':
+            time_zone_dict = {
+                'E': 'US/Eastern',
+                'C': 'US/Central',
+                'M': 'US/Mountain',
+                'P': 'US/Pacific'
+            }
+            time_zone_selection = time_zone_dict.get(data['timeZone'], 'Invalid')
+            if time_zone_selection == 'Invalid':
+                print(f'{data["timeZone"]} is not a valid timezone')
+
+        # Assemble Time
+        post_time_local = datetime.datetime(
+            year=data['raceKey']['raceDate']['year'],
+            month=data['raceKey']['raceDate']['month']+1,
+            day=data['raceKey']['raceDate']['day'],
+            hour=post_time_hour,
+            minute=post_time_minute,
+            tzinfo=timezone(time_zone_selection)
+        )
+        post_time = post_time_local.astimezone(timezone('UTC'))
+
+    else:
+        post_time = datetime.datetime.fromtimestamp(data['postTimeLong'] / 1000.0)  # UTC Already
+
+    # Identifying Info
+    item['track_id'] = data['raceKey']['trackId']
+    item['race_number'] = data['raceKey']['raceNumber']
+    item['post_time'] = post_time  # UTC Already
+    item['day_evening'] = data['raceKey']['dayEvening']
+    item['country'] = data['raceKey']['country']
+
+    # Common
+    item['distance'] = convert_drf_distance_description_to_furlongs(data['distanceDescription'])
+    if item['distance'] <= 0:
+        return
+    item['age_restriction'] = data['ageRestrictionDescription']
+    item['race_restriction'] = data['raceRestrictionDescription']
+    item['sex_restriction'] = data['sexRestrictionDescription']
+    item['race_surface'] = data['surfaceDescription']
+    item['race_type'] = data['raceTypeDescription']
+    item['breed'] = data['breed']
+
+    # Results
+    if 'payoffs' in data:
+        # Results Datafiles
+        item['results'] = True
+        item['purse'] = int(data['totalPurse'].replace(',', ''))
+        item['track_condition'] = data['trackConditionDescription']
+    else:
+        # Odds Datafiles
+        item['purse'] = data['purse']
+        item['wager_text'] = data['wagerText']
+
+
+    # Scraping info
+    item['latest_scrape_time'] = scrape_time
+
+    # Check for existing record
+    race = session.query(Races).filter(
+        Races.track_id == item['track_id'],
+        Races.race_number == item['race_number'],
+        func.date_trunc('day', Races.post_time) == func.date_trunc('day', item['post_time'])
+    ).first()
+
+    # If its new, create a new one in the database
+    if race is None:
+
+        # Process Race
+        race = Races(**item)
+
+        # Add To Table (after commit, id is filled in)
+        session.add(race)
+
+    # Otherwise, update the record with the new values and commit it
+    else:
+
+        # Set the new attributes
+        for key, value in item.items():
+            setattr(race, key, value)
+
+    # Commit changes whichever way it went
+    session.commit()
+
+    # Return race instance
+    return race
+
+
+def load_drf_horse_data_into_database(runner, session):
+
+    # Create Horse Dict
+    item = dict()
+    item['horse_name'] = runner['horseName'].strip()
+
+    # Check for existing record
+    horse = session.query(Horses).filter(Horses.horse_name == item['horse_name']).first()
+
+    # If its new, create a new one in the database
+    if horse is None:
+
+        # Process New Record
+        horse = Horses(**item)
+
+        # Add To Table (after commit, d is filled in)
+        session.add(horse)
+
+    # Otherwise, update the record with the new values and commit it
+    else:
+
+        # Set the new attributes
+        for key, value in item.items():
+            setattr(horse, key, value)
+
+    # Commit changes whichever way it went
+    session.commit()
+
+    # Return horse record
+    return horse
+
+
+def load_drf_entry_data_into_database(runner, session, horse, race, finish_position):
+
+    # Create Entry Dict
+    item = dict()
+    item['race_id'] = race.race_id
+    item['horse_id'] = horse.horse_id
+    if 'scratchIndicator' in runner:
+        item['scratch_indicator'] = runner['scratchIndicator']
+    else:
+        item['scratch_indicator'] = 'N'
+
+    if 'postPos' in runner:
+        item['post_position'] = runner['postPos']
+
+    if 'programNumber' in runner:
+        item['program_number'] = runner['programNumber']
+
+    # Results
+    if 'winPayoff' in runner:
+        item['win_payoff'] = runner['winPayoff']
+        item['place_payoff'] = runner['placePayoff']
+        item['show_payoff'] = runner['showPayoff']
+
+        if item['win_payoff'] > 0:
+            item['finish_position'] = 1
+        elif item['place_payoff'] > 0:
+            item['finish_position'] = 2
+        elif item['show_payoff'] > 0:
+            item['finish_position'] = 3
+
+    # Finish Position
+    if finish_position > 0:
+        item['finish_position'] = finish_position
+
+    # Check for existing record
+    entry = session.query(Entries).filter(Entries.race_id == item['race_id'],
+                                          Entries.horse_id == item['horse_id']).first()
+
+    # If its new, create a new one in the database
+    if entry is None:
+
+        # Process New Record
+        entry = Entries(**item)
+
+        # Add To Table (after commit, id is filled in)
+        session.add(entry)
+
+    # Otherwise, update the record with the new values and commit it
+    else:
+
+        # Set the new attributes
+        for key, value in item.items():
+            setattr(entry, key, value)
+
+    # Commit changes whichever way it went
+    session.commit()
+
+    # Return entry variable
+    return entry
+
+
+def load_drf_odds_entry_pool_data_into_database(runner, session, entry, scrape_time):
+
+    for data_pool in runner['horseDataPools']:
+
+        # Odds processing
+        odds_split = data_pool['fractionalOdds'].split('-')
+        if len(odds_split) != 2:
+            odds_value = -1
+        else:
+            odds_value = float(odds_split[0])/float(odds_split[1])
+
+        # Create Entry Dict
+        item = dict()
+        item['entry_id'] = entry.entry_id
+        item['scrape_time'] = scrape_time
+        item['pool_type'] = data_pool['poolTypeName']
+        item['amount'] = float(data_pool['amount'])
+        if odds_value >= 0:
+            item['odds'] = odds_value
+        item['dollar'] = float(data_pool['dollar'])
+
+        # Check for existing record
+        entry_pool = session.query(EntryPools).filter(
+            EntryPools.entry_id == item['entry_id'],
+            EntryPools.scrape_time == item['scrape_time'],
+            EntryPools.pool_type == item['pool_type']
+        ).first()
+
+        # If its new, create a new one in the database
+        if entry_pool is None:
+
+            # Process New Record
+            entry_pool = EntryPools(**item)
+
+            # Add To Table (after commit, id is filled in)
+            session.add(entry_pool)
+
+        # Otherwise, update the record with the new values and commit it
+        else:
+
+            # Set the new attributes
+            for key, value in item.items():
+                setattr(entry_pool, key, value)
+
+        # Commit changes whichever way it went
+        session.commit()
+
+
+def load_drf_odds_data_into_database(data, scrape_time, session):
+
+    # Race Info
+    race = load_drf_race_data_into_database(data, scrape_time, session)
+    if race is None:
+        return
+
+    # Parse Runner Data
+    for runner in data['runners']:
+
+        # Load Horse Data
+        horse = load_drf_horse_data_into_database(runner, session)
+        if horse is None:
+            return
+
+        # Load Entry Data
+        entry = load_drf_entry_data_into_database(runner, session, horse, race, 0)
+        if entry is None:
+            return
+
+        # Load Entry Pool Data
+        load_drf_odds_entry_pool_data_into_database(
+            runner,
+            session,
+            entry,
+            scrape_time
+        )
+
+    # Close Session
+    session.close()
+
+
+def load_drf_results_data_into_database(data, scrape_time, session):
+
+    # Race Info
+    race = load_drf_race_data_into_database(data, scrape_time, session)
+    if race is None:
+        return
+
+    # Parse Runner Data
+    for runner in data['runners']:
+
+        # Load Horse Data
+        horse = load_drf_horse_data_into_database(runner, session)
+        if horse is None:
+            return
+
+        # Load Entry Data
+        entry = load_drf_entry_data_into_database(runner, session, horse, race, 0)
+        if entry is None:
+            return
+
+    # Parse finish position out of also ran
+    if isinstance(data['alsoRan'], list):
+        order_of_finish = data['alsoRan']
+    else:
+        first_horses, last_horse = data['alsoRan'].split('  and   ')
+        order_of_finish = first_horses.split(', ')
+        order_of_finish.append(last_horse)
+    for finish_index, horse_name in enumerate(order_of_finish):
+
+        # Load Horse Data
+        runner = {'horseName': horse_name.strip()}
+        horse = load_drf_horse_data_into_database(runner, session)
+        if horse is None:
+            return
+
+        # Load Entry Data
+        entry = load_drf_entry_data_into_database(runner, session, horse, race, finish_index+4)
+        if entry is None:
+            return
+
+
+def get_single_drf_odds_track_data_from_file(filename):
+
+    if os.path.exists(filename):
+        with open(filename) as json_file:
+            data = json.load(json_file)
+        return data
+    else:
+        return {}
+
+
+def get_single_drf_results_track_data_from_file(filename):
+
+    if os.path.exists(filename):
+        with open(filename) as json_file:
+            data = json.load(json_file)
+        return data
+    else:
+        return {}
+
+
+def get_list_of_files(dir_name):
+
+    # create a list of file and sub directories
+    # names in the given directory
+    list_of_files = os.listdir(dir_name)
+    all_files = list()
+
+    # Iterate over all the entries
+    for entry in list_of_files:
+
+        # Create full path
+        full_path = os.path.join(dir_name, entry)
+
+        # If entry is a directory then get the list of files in this directory
+        if os.path.isdir(full_path):
+            all_files = all_files + get_list_of_files(full_path)
+        else:
+            all_files.append(full_path)
+
+    return all_files
+
+
+def get_all_drf_odds_json_filenames_from_storage(storage_base):
+
+    # Get list of all files in the base directory
+    raw_file_list = get_list_of_files(storage_base)
+
+    # Filter them down
+    filtered_file_list = list(filter(lambda x: x.endswith('_odds.json'), raw_file_list))
+
+    # Return Data
+    return filtered_file_list
+
+
+def get_all_drf_results_json_filenames_from_storage(storage_base):
+
+    # Get list of all files in the base directory
+    raw_file_list = get_list_of_files(storage_base)
+
+    # Filter them down
+    filtered_file_list = list(filter(lambda x: x.endswith('_results.json'), raw_file_list))
+
+    # Return Data
+    return filtered_file_list
 
 
 def get_single_track_data_from_drf(track):
@@ -182,7 +639,7 @@ if __name__ == '__main__':
     args = arg_parser.parse_args()
 
     # Check mode
-    if args.mode in ('odds', 'drf'):
+    if args.mode in ('odds', 'drf', 'all'):
 
         # Check output directory
         base_data_dir = args.output_dir.strip()
@@ -199,7 +656,7 @@ if __name__ == '__main__':
                 race_data = get_single_track_data_from_drf(current_track)
                 save_single_track_drf_odds_data_to_file(race_data, base_data_dir)
 
-    elif args.mode in ('results', 'drf'):
+    elif args.mode in ('results', 'drf', 'all'):
 
         # Check output directory
         base_data_dir = args.output_dir.strip()
@@ -223,6 +680,48 @@ if __name__ == '__main__':
                         )
                         save_single_track_drf_results_data_to_file(results_data, base_data_dir)
 
+    elif args.mode in ('files', 'all'):
+
+        # Check output directory
+        base_data_dir = args.output_dir.strip()
+        if base_data_dir == '' or not os.path.exists(base_data_dir):
+            print(f'The output directory of "{base_data_dir}" is invalid!')
+            exit(1)
+
+        # Connect to the database
+        engine = db_connect()
+        create_drf_live_table(engine)
+        session_maker_class = sessionmaker(bind=engine)
+        db_session = session_maker_class()
+
+        # Get list of odds files to parse
+        odds_file_list = sorted(get_all_drf_odds_json_filenames_from_storage(base_data_dir))
+
+        # Load file into database
+        for odds_file in odds_file_list:
+            print(f'Working on {odds_file}')
+            odds_data = get_single_drf_odds_track_data_from_file(odds_file)
+            current_scrape_time = datetime.datetime.fromisoformat(odds_data['drf_scrape']['time_scrape_utc'])
+            load_drf_odds_data_into_database(odds_data, current_scrape_time, db_session)
+            break
+
+        # Get list of results files to parse
+        results_file_list = sorted(get_all_drf_results_json_filenames_from_storage(base_data_dir))
+
+        # Load file into database
+        for results_file in results_file_list:
+            print(f'Working on {results_file}')
+            results_data = get_single_drf_results_track_data_from_file(results_file)
+            current_scrape_time = datetime.datetime.fromisoformat(results_data['drf_scrape']['time_scrape_utc'])
+            for index, race_data in enumerate(results_data['races']):
+                race_data['postTimeLong'] = results_data['allRaces'][index]['postTime']
+                load_drf_results_data_into_database(race_data, current_scrape_time, db_session)
+
+        # Close everything out
+        db_session.close()
+        engine.dispose()
+
     else:
+
         print(f'"{args.mode}" is not a valid operational mode!')
         exit(1)

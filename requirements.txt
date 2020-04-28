@@ -1,0 +1,4 @@
+Pint==0.11
+psycopg2==2.8.5
+pytz==2019.3
+SQLAlchemy==1.3.16

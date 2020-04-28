@@ -1,10 +1,11 @@
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean, Date, Float
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, Float, ForeignKey, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.engine.url import URL
 from settings import DATABASE
+from pytz import timezone
 
-
-DeclarativeBase = declarative_base()
+# Setup base
+base = declarative_base()
 
 
 def db_connect():
@@ -17,87 +18,98 @@ def db_connect():
 
 def create_drf_live_table(engine):
     """"""
-    # DeclarativeBase.metadata.drop_all(bind=engine)
-    DeclarativeBase.metadata.create_all(engine)
+    base.metadata.drop_all(bind=engine)
+    base.metadata.create_all(engine)
 
 
-class Races(DeclarativeBase):
+class Races(base):
     """Sqlalchemy Races model"""
     __tablename__ = "races"
-    __table_args__ = {'schema': 'drf'}
 
-    id = Column(Integer, primary_key=True)
+    race_id = Column(Integer, primary_key=True)
+
+    # Identifying Info
     track_id = Column('track_id', String)
     race_number = Column('race_number', Integer)
-    race_date = Column('race_date', Date)
-    post_time = Column('post_time', DateTime, nullable=True)
-    day_evening = Column('day_evening', String, nullable=True)
-    country = Column('country', String, nullable=True)
-    distance_description = Column('distance_description', String, nullable=True)
+    post_time = Column('post_time', DateTime)  # UTC
+    day_evening = Column('day_evening', String)
+    country = Column('country', String)
+
+    # Race Info
+    distance = Column('distance', Float)  # In furlongs
     purse = Column('purse', Integer, nullable=True)
-    has_exacta = Column('has_exacta', Boolean)
-    exacta_minimum_wager = Column('exacta_minimum_wager', Float, nullable=True)
-    exacta_minimum_box_wager = Column('exacta_minimum_box_wager', Float, nullable=True)
-    exacta_pool_total = Column('exacta_pool_total', Float, nullable=True)
-    exacta_winning_ticket_numbers = Column('exacta_winning_ticket_numbers', String, nullable=True)
-    exacta_winning_ticket_base = Column('exacta_winning_ticket_base', Float, nullable=True)
-    exacta_winning_ticket_payoff = Column('exacta_winning_ticket_payoff', Float, nullable=True)
-    win_pool_total = Column('win_pool_total', Float, nullable=True)
-    place_pool_total = Column('place_pool_total', Float, nullable=True)
+    age_restriction = Column('age_restriction', String, nullable=True)
+    race_restriction = Column('race_restriction', String, nullable=True)
+    sex_restriction = Column('sex_restriction', String, nullable=True)
+    wager_text = Column('wager_text', String, nullable=True)
+    race_surface = Column('race_surface', String)
+    race_type = Column('race_type', String, nullable=True)
+    breed = Column('breed', String, nullable=True)
+    track_condition = Column('track_condition', String, nullable=True)
+
+    # Results
+    results = Column('results', Boolean, default=False)
+
+    # Scraping Info
+    latest_scrape_time = Column('latest_scrape_time', DateTime)  # UTC
 
     def live_odds_link(self):
-        return ("http://www.drf.com/liveOdds/tracksPoolDetails" +
-                "/currentRace/" + str(self.race_number) +
-                "/trackId/" + self.track_id +
-                "/country/" + self.country +
-                "/dayEvening/" + self.day_evening +
-                "/date/" + self.race_date.strftime("%m-%d-%Y"))
+        utc_datetime = self.post_time.replace(tzinfo=timezone('UTC'))
+        eastern_datetime = utc_datetime.astimezone(timezone('US/Eastern'))
+        return (f'http://www.drf.com/liveOdds/tracksPoolDetails'
+                f'/currentRace/{self.race_number}'
+                f'/trackId/{self.track_id}' 
+                f'/country/{self.country}'
+                f'/dayEvening/{self.day_evening}'
+                f'/date/{eastern_datetime.strftime("%m-%d-%Y")}')
 
     def results_link(self):
+        utc_datetime = self.post_time.replace(tzinfo=timezone('UTC'))
+        eastern_datetime = utc_datetime.astimezone(timezone('US/Eastern'))
         return("https://www.drf.com/results/resultDetails/id/" +
                self.track_id + "/country/" + self.country +
-               "/date/" + self.race_date.strftime("%m-%d-%Y"))
+               "/date/" + eastern_datetime.strftime("%m-%d-%Y"))
 
 
-class Horses(DeclarativeBase):
-    """Sqlalchemy Horses model"""
+class Horses(base):
+    """Sqlalchemy Races model"""
     __tablename__ = "horses"
-    __table_args__ = {'schema': 'drf'}
 
-    id = Column(Integer, primary_key=True)
+    horse_id = Column('horse_id', Integer, primary_key=True)
+
+    # Identifying Info
     horse_name = Column('horse_name', String)
 
 
-class Entries(DeclarativeBase):
-    """Sqlalchemy Entries model"""
-    __tablename__ = "entries"
-    __table_args__ = {'schema': 'drf'}
+class Entries(base):
 
-    id = Column(Integer, primary_key=True)
-    race_id = Column('race_id', Integer)
-    horse_id = Column('horse_id', Integer)
+    """Sqlalchemy Races model"""
+    __tablename__ = "entries"
+
+    entry_id = Column('entry_id', Integer, primary_key=True)
+    race_id = Column('race_id', Integer, ForeignKey('races.race_id'))
+    horse_id = Column('horse_id', Integer, ForeignKey('horses.horse_id'))
     scratch_indicator = Column('scratch_indicator', String)
     post_position = Column('post_position', Integer, nullable=True)
     program_number = Column('program_number', String, nullable=True)
-    win_pool_percent = Column('win_pool_percent', Float, nullable=True)
-    place_pool_percent = Column('place_pool_percent', Float, nullable=True)
-    win_payoff = Column('win_payoff', Float, nullable=True)
-    place_payoff = Column('place_payoff', Float, nullable=True)
+
+    # Results
+    win_payoff = Column('win_payoff', Float, default=0)
+    place_payoff = Column('place_payoff', Float, default=0)
+    show_payoff = Column('show_payoff', Float, default=0)
+    finish_position = Column('finish_position', Integer, nullable=True)
 
 
-class Exacta_Probables(DeclarativeBase):
-    """Sqlalchemy Entries model"""
-    __tablename__ = "exacta_probables"
-    __table_args__ = {'schema': 'drf'}
+class EntryPools(base):
 
-    id = Column(Integer, primary_key=True)
-    race_id = Column('race_id', Integer)
-    exacta_ticket_numbers = Column('exacta_ticket_numbers', String)
-    exacta_probable_value = Column('exacta_probable_value', Float, nullable=True)
-    exacta_pool_amount = Column('exacta_pool_amount', Float, nullable=True)
+    """Sqlalchemy Races model"""
+    __tablename__ = "entry_pools"
 
-
-
-
-
+    entry_pool_id = Column('entry_pool_id', Integer, primary_key=True)
+    entry_id = Column('entry_id', ForeignKey('entries.entry_id'))
+    scrape_time = Column('scrape_time', DateTime)
+    pool_type = Column('pool_type', String)
+    amount = Column('amount', Float)
+    odds = Column('odds', Float, nullable=True)
+    dollar = Column('dollar', Float, nullable=True)
 
