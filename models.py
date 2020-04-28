@@ -16,9 +16,10 @@ def db_connect():
     return create_engine(URL(**DATABASE))
 
 
-def create_drf_live_table(engine):
+def create_drf_live_table(engine, destroy_flag):
     """"""
-    base.metadata.drop_all(bind=engine)
+    if destroy_flag:
+        base.metadata.drop_all(bind=engine)
     base.metadata.create_all(engine)
 
 
@@ -113,3 +114,30 @@ class EntryPools(base):
     odds = Column('odds', Float, nullable=True)
     dollar = Column('dollar', Float, nullable=True)
 
+
+class Payoffs(base):
+    """Sqlalchemy Races model"""
+    __tablename__ = "payoffs"
+
+    payoff_id = Column('entry_pool_id', Integer, primary_key=True)
+    race_id = Column('race_id', Integer, ForeignKey('races.race_id'))
+    wager_type = Column('wager_type', String)
+    wager_type_name = Column('wager_type_name', String)
+    winning_numbers = Column('winning_numbers', String)
+    number_of_tickets = Column('number_of_tickets', Integer)
+    total_pool = Column('total_pool', Integer)
+    payoff_amount = Column('payoff_amount', Float)
+    base_amount = Column('base_amount', Float)  # Check the wagertypes section
+
+
+class Probables(base):
+    """Sqlalchemy Races model"""
+    __tablename__ = "probables"
+
+    probable_id = Column('entry_pool_id', Integer, primary_key=True)
+    race_id = Column('race_id', Integer, ForeignKey('races.race_id'))
+    scrape_time = Column('scrape_time', DateTime)
+    probable_type = Column('probable_type', String)
+    program_numbers = Column('program_numbers', String)
+    probable_value = Column('probable_value', Float)
+    probable_pool_amount = Column('probable_pool_amount', Float)

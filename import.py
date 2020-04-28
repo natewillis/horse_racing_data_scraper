@@ -4,7 +4,7 @@ import datetime
 import os
 import argparse
 from pytz import timezone
-from models import db_connect, Races, Horses, Entries, EntryPools, create_drf_live_table
+from models import db_connect, Races, Horses, Entries, EntryPools, Payoffs, Probables, create_drf_live_table
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import func
 from pint import UnitRegistry
@@ -323,12 +323,110 @@ def load_drf_odds_entry_pool_data_into_database(runner, session, entry, scrape_t
         session.commit()
 
 
+def load_drf_payoff_data_into_database(data, session, race):
+
+    # Create base amount dict
+    base_amount_dict = {}
+    for wager in data['wagerTypes']:
+        base_amount_dict[wager['wagerType'].strip()] = wager['baseAmount'].strip()
+
+    # Loop through payoffs
+    for payoff in data['payoffDTOs']:
+
+        # Create Entry Dict
+        item = dict()
+        item['race_id'] = race.race_id
+        item['wager_type'] = payoff['wagerType'].strip()
+        item['wager_type_name'] = payoff['wagerName'].strip()
+        item['winning_numbers'] = payoff['winningNumbers'].strip()
+        item['number_of_tickets'] = payoff['numberOfTicketsBet']
+        item['total_pool'] = payoff['totalPool']
+        item['payoff_amount'] = payoff['payoffAmount']
+        item['base_amount'] = base_amount_dict.get(payoff['wagerType'], 0)
+
+        # Check for existing record
+        payoff_record = session.query(Payoffs).filter(
+            Payoffs.race_id == item['race_id'],
+            Payoffs.wager_type == item['wager_type']
+        ).first()
+
+        # If its new, create a new one in the database
+        if payoff_record is None:
+
+            # Process New Record
+            payoff_record = Payoffs(**item)
+
+            # Add To Table (after commit, id is filled in)
+            session.add(payoff_record)
+
+        # Otherwise, update the record with the new values and commit it
+        else:
+
+            # Set the new attributes
+            for key, value in item.items():
+                setattr(payoff_record, key, value)
+
+        # Commit changes whichever way it went
+        session.commit()
+
+
+def load_drf_probable_data_into_database(data, session, race, scrape_time):
+
+    # Loop through payoffs
+    for probable_type in data['wagerToteProbables']:
+        for probable_dict in data['wagerToteProbables'][probable_type]:
+
+            if not isinstance(probable_dict, dict):
+                print(probable_dict)
+                print('that wasnt a valid probable dictionary')
+                continue
+
+            # Create Entry Dict
+            item = dict()
+            item['race_id'] = race.race_id
+            item['scrape_time'] = scrape_time
+            item['probable_type'] = probable_dict['probType'].strip()
+            item['program_numbers'] = probable_dict['progNum'].strip()
+            item['probable_value'] = probable_dict['probValue']
+            item['probable_pool_amount'] = probable_dict['poolAmount']
+
+            # Check for existing record
+            probable_record = session.query(Probables).filter(
+                Probables.race_id == item['race_id'],
+                Probables.probable_type == item['probable_type'],
+                Probables.program_numbers == item['program_numbers'],
+                Probables.scrape_time == item['scrape_time']
+            ).first()
+
+            # If its new, create a new one in the database
+            if probable_record is None:
+
+                # Process New Record
+                probable_record = Probables(**item)
+
+                # Add To Table (after commit, id is filled in)
+                session.add(probable_record)
+
+            # Otherwise, update the record with the new values and commit it
+            else:
+
+                # Set the new attributes
+                for key, value in item.items():
+                    setattr(probable_record, key, value)
+
+            # Commit changes whichever way it went
+            session.commit()
+
+
 def load_drf_odds_data_into_database(data, scrape_time, session):
 
     # Race Info
     race = load_drf_race_data_into_database(data, scrape_time, session)
     if race is None:
         return
+
+    # Probable Data
+    load_drf_probable_data_into_database(data, session, race, scrape_time)
 
     # Parse Runner Data
     for runner in data['runners']:
@@ -361,6 +459,9 @@ def load_drf_results_data_into_database(data, scrape_time, session):
     race = load_drf_race_data_into_database(data, scrape_time, session)
     if race is None:
         return
+
+    # Payoff Info
+    load_drf_payoff_data_into_database(data, session, race)
 
     # Parse Runner Data
     for runner in data['runners']:
@@ -650,11 +751,25 @@ if __name__ == '__main__':
         # Get currently running tracks
         track_data = get_current_drf_odds_track_list()
 
-        # Iterate through tracks
-        for current_track in track_data:
-            if current_track['country'] == 'USA':
-                race_data = get_single_track_data_from_drf(current_track)
-                save_single_track_drf_odds_data_to_file(race_data, base_data_dir)
+        if len(track_data) > 0:
+
+            # Connect to the database
+            engine = db_connect()
+            create_drf_live_table(engine, False)
+            session_maker_class = sessionmaker(bind=engine)
+            db_session = session_maker_class()
+
+            # Iterate through tracks
+            for current_track in track_data:
+                if current_track['country'] == 'USA':
+                    race_data = get_single_track_data_from_drf(current_track)
+                    save_single_track_drf_odds_data_to_file(race_data, base_data_dir)
+                    current_scrape_time = datetime.datetime.fromisoformat(race_data['drf_scrape']['time_scrape_utc'])
+                    load_drf_odds_data_into_database(race_data, current_scrape_time, db_session)
+
+            # Close everything out
+            db_session.close()
+            engine.dispose()
 
     elif args.mode in ('results', 'drf', 'all'):
 
@@ -667,18 +782,38 @@ if __name__ == '__main__':
         # Get yesterdays tracks
         yesterday = datetime.datetime.utcnow()+datetime.timedelta(days=-1)
         track_data = get_current_drf_results_track_list()
-        for current_track in track_data['raceTracks']['allTracks']:
-            for card in current_track['cards']:
-                race_card_date_int = int(card['raceDate']['date'])/1000.0
-                if race_card_date_int > 0:
-                    card_date = datetime.datetime.utcfromtimestamp(race_card_date_int)
-                    if card_date.date() == yesterday.date():
-                        results_data = get_single_race_day_drf_results(
-                            card_date,
-                            current_track['trackId'],
-                            current_track['country']
-                        )
-                        save_single_track_drf_results_data_to_file(results_data, base_data_dir)
+
+        # Loop if theres tracks
+        if len(track_data['raceTracks']['allTracks']) > 0:
+
+            # Connect to the database
+            engine = db_connect()
+            create_drf_live_table(engine, False)
+            session_maker_class = sessionmaker(bind=engine)
+            db_session = session_maker_class()
+
+            for current_track in track_data['raceTracks']['allTracks']:
+                for card in current_track['cards']:
+                    race_card_date_int = int(card['raceDate']['date'])/1000.0
+                    if race_card_date_int > 0:
+                        card_date = datetime.datetime.utcfromtimestamp(race_card_date_int)
+                        if card_date.date() == yesterday.date():
+                            results_data = get_single_race_day_drf_results(
+                                card_date,
+                                current_track['trackId'],
+                                current_track['country']
+                            )
+                            save_single_track_drf_results_data_to_file(results_data, base_data_dir)
+                            current_scrape_time = datetime.datetime.fromisoformat(
+                                results_data['drf_scrape']['time_scrape_utc']
+                            )
+                            for index, race_data in enumerate(results_data['races']):
+                                race_data['postTimeLong'] = results_data['allRaces'][index]['postTime']
+                                load_drf_results_data_into_database(race_data, current_scrape_time, db_session)
+
+            # Close everything out
+            db_session.close()
+            engine.dispose()
 
     elif args.mode in ('files', 'all'):
 
@@ -690,7 +825,7 @@ if __name__ == '__main__':
 
         # Connect to the database
         engine = db_connect()
-        create_drf_live_table(engine)
+        create_drf_live_table(engine, False)
         session_maker_class = sessionmaker(bind=engine)
         db_session = session_maker_class()
 
