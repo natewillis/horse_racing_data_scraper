@@ -303,11 +303,14 @@ def load_drf_odds_entry_pool_data_into_database(runner, session, entry, scrape_t
         item['dollar'] = float(data_pool['dollar'])
 
         # Check for existing record
-        entry_pool = session.query(EntryPools).filter(
-            EntryPools.entry_id == item['entry_id'],
-            EntryPools.scrape_time == item['scrape_time'],
-            EntryPools.pool_type == item['pool_type']
-        ).first()
+        if 1==1:
+            entry_pool = session.query(EntryPools).filter(
+                EntryPools.entry_id == item['entry_id'],
+                EntryPools.scrape_time == item['scrape_time'],
+                EntryPools.pool_type == item['pool_type']
+            ).first()
+        else:
+            entry_pool = None
 
         # If its new, create a new one in the database
         if entry_pool is None:
@@ -396,12 +399,15 @@ def load_drf_probable_data_into_database(data, session, race, scrape_time):
             item['probable_pool_amount'] = probable_dict['poolAmount']
 
             # Check for existing record
-            probable_record = session.query(Probables).filter(
-                Probables.race_id == item['race_id'],
-                Probables.probable_type == item['probable_type'],
-                Probables.program_numbers == item['program_numbers'],
-                Probables.scrape_time == item['scrape_time']
-            ).first()
+            if 1==1:
+                probable_record = session.query(Probables).filter(
+                    Probables.race_id == item['race_id'],
+                    Probables.probable_type == item['probable_type'],
+                    Probables.program_numbers == item['program_numbers'],
+                    Probables.scrape_time == item['scrape_time']
+                ).first()
+            else:
+                probable_record = None
 
             # If its new, create a new one in the database
             if probable_record is None:
