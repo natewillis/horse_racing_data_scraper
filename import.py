@@ -678,7 +678,6 @@ def get_single_race_day_drf_results(date, track_id, country):
     # Form URL
     drf_format_date = date.strftime("%m-%d-%Y")
     race_url = f'https://www.drf.com/results/resultDetails/id/{track_id}/country/{country}/date/{drf_format_date}'
-    print(race_url)
 
     # Get Data
     with urllib.request.urlopen(race_url) as url:
