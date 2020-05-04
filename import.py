@@ -3,7 +3,7 @@ import json
 import datetime
 import os
 import argparse
-from pytz import timezone
+from pytz import timezone, utc
 from models import db_connect, Races, Horses, Entries, EntryPools, Payoffs, Probables, create_drf_live_table
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import func
@@ -678,6 +678,7 @@ def get_single_race_day_drf_results(date, track_id, country):
     # Form URL
     drf_format_date = date.strftime("%m-%d-%Y")
     race_url = f'https://www.drf.com/results/resultDetails/id/{track_id}/country/{country}/date/{drf_format_date}'
+    print(race_url)
 
     # Get Data
     with urllib.request.urlopen(race_url) as url:
@@ -731,6 +732,33 @@ def save_single_track_drf_results_data_to_file(data, save_dir):
     # Write File
     with open(data_filepath, 'w') as outfile:
         json.dump(data, outfile)
+
+
+def get_races_with_no_results(session):
+
+    # Query Races
+    races = session.query(Races).\
+        filter_by(results=False).\
+        filter(Races.post_time <= datetime.datetime.utcnow()).all()
+
+    # Organize in list
+    race_list = []
+    for race in races:
+
+        # Convert to pacific time
+        post_time_utc = utc.localize(race.post_time)
+        post_time_pacific = post_time_utc.astimezone(timezone('US/Pacific'))
+
+        # Append to list
+        race_list.append({
+            'post_time': post_time_pacific,
+            'track_id': race.track_id,
+            'country': race.country,
+            'race_id': race.race_id
+        })
+
+    # Return Missing
+    return race_list
 
 
 if __name__ == '__main__':
@@ -825,6 +853,49 @@ if __name__ == '__main__':
             # Close everything out
             db_session.close()
             engine.dispose()
+
+    elif args.mode in ('missing', 'drf', 'all'):
+
+        # Check output directory
+        base_data_dir = args.output_dir.strip()
+        if base_data_dir == '' or not os.path.exists(base_data_dir):
+            print(f'The output directory of "{base_data_dir}" is invalid!')
+            exit(1)
+
+        # Connect to the database
+        engine = db_connect()
+        create_drf_live_table(engine, False)
+        session_maker_class = sessionmaker(bind=engine)
+        db_session = session_maker_class()
+
+        # Get missing tracks
+        missing_races = get_races_with_no_results(db_session)
+
+        # Loop if theres races
+        for current_race in missing_races:
+
+            # Double check its still missing data
+            race = db_session.query(Races).filter_by(race_id=current_race['race_id']).one()
+            if race.results:
+                continue
+
+            # Get data
+            results_data = get_single_race_day_drf_results(
+                current_race['post_time'],
+                current_race['track_id'],
+                current_race['country']
+            )
+            current_scrape_time = datetime.datetime.fromisoformat(
+                results_data['drf_scrape']['time_scrape_utc']
+            )
+            if results_data['isData']:
+                for index, race_data in enumerate(results_data['races']):
+                    race_data['postTimeLong'] = results_data['allRaces'][index]['postTime']
+                    load_drf_results_data_into_database(race_data, current_scrape_time, db_session)
+
+        # Close everything out
+        db_session.close()
+        engine.dispose()
 
     elif args.mode in ('files', 'all'):
 
