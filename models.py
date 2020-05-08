@@ -88,6 +88,9 @@ class Races(base):
     race_type = Column('race_type', String, nullable=True)
     breed = Column('breed', String, nullable=True)
     track_condition = Column('track_condition', String, nullable=True)
+    min_claim_price = Column('min_claim_price', Float)
+    max_claim_price = Column('max_claim_price', Float)
+    race_class = Column('race_class', String)
 
     # Inferred Data
     off_time = Column('off_time', DateTime)
@@ -95,6 +98,7 @@ class Races(base):
     # Types of Parsing
     drf_results = Column('drf_results', Boolean, default=False)
     drf_live_odds = Column('drf_live_odds', Boolean, default=False)
+    drf_entries = Column('drf_entries', Boolean, default=False)
 
     # Scraping Info
     latest_scrape_time = Column('latest_scrape_time', DateTime)  # UTC

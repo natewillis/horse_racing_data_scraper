@@ -193,6 +193,7 @@ def load_drf_race_data_into_database(data, track, scrape_time, session):
     item['race_surface'] = data['surfaceDescription']
     item['race_type'] = data['raceTypeDescription']
     item['breed'] = data['breed']
+    item['race_class'] = data['raceClass']
 
     # Results
     if 'payoffs' in data:
@@ -200,10 +201,23 @@ def load_drf_race_data_into_database(data, track, scrape_time, session):
         item['drf_results'] = True
         item['purse'] = int(data['totalPurse'].replace(',', ''))
         item['track_condition'] = data['trackConditionDescription']
+        if data['minimumClaimPrice'] is not None and data['maximumClaimPrice'] is not None:
+            if data['maximumClaimPrice'] != '' and data['minimumClaimPrice'] != '':
+                item['max_claim_price'] = float(data['maximumClaimPrice'].replace(',', ''))
+                item['min_claim_price'] = float(data['minimumClaimPrice'].replace(',', ''))
+
     else:
-        # Odds Datafiles
+        # Odds Datafiles or Entries
         item['purse'] = data['purse']
         item['wager_text'] = data['wagerText']
+        if data['minClaimPrice'] is not None and data['maxClaimPrice'] is not None:
+            item['min_claim_price'] = data['minClaimPrice']
+            item['max_claim_price'] = data['maxClaimPrice']
+        if 'totalWinPool' in data:
+            item['drf_live_odds'] = True
+        else:
+            item['drf_entries'] = True
+
 
     # Scraping info
     item['latest_scrape_time'] = scrape_time
@@ -692,7 +706,6 @@ def load_drf_results_data_into_database(data, scrape_time, session):
     load_drf_payoff_data_into_database(data, session, race)
 
     # Parse Runner Data
-    finish_position = 1
     for runner in data['runners']:
 
         # Load Horse Data
@@ -714,12 +727,9 @@ def load_drf_results_data_into_database(data, scrape_time, session):
         owner = load_drf_owner_data_into_database(runner, session)
 
         # Load Entry Data
-        entry = load_drf_entry_data_into_database(runner, session, horse, race, trainer, jockey, owner, finish_position)
+        entry = load_drf_entry_data_into_database(runner, session, horse, race, trainer, jockey, owner, 0)
         if entry is None:
             return
-
-        # Increment finish
-        finish_position += 1
 
     # Parse finish position out of also ran
     if data['alsoRan'] is None:
@@ -740,6 +750,45 @@ def load_drf_results_data_into_database(data, scrape_time, session):
 
         # Load Entry Data
         entry = load_drf_entry_data_into_database(runner, session, horse, race, None, None, None, finish_index+4)
+        if entry is None:
+            return
+
+
+def load_drf_entries_data_into_database(data, scrape_time, session):
+
+    # Track Info
+    track = load_drf_track_data_into_database(data, session)
+    if track is None:
+        return
+
+    # Race Info
+    race = load_drf_race_data_into_database(data, track, scrape_time, session)
+    if race is None:
+        return
+
+    # Parse Runner Data
+    for runner in data['runners']:
+
+        # Load Horse Data
+        horse = load_drf_horse_data_into_database(runner, session)
+        if horse is None:
+            return
+
+        # Load Trainer Data
+        trainer = load_drf_trainer_data_into_database(runner, session)
+        if trainer is None:
+            return
+
+        # Load Jockey Data
+        jockey = load_drf_jockey_data_into_database(runner, session)
+        if jockey is None:
+            return
+
+        # Load Owner Data
+        owner = None
+
+        # Load Entry Data
+        entry = load_drf_entry_data_into_database(runner, session, horse, race, trainer, jockey, owner, 0)
         if entry is None:
             return
 
@@ -855,6 +904,20 @@ def get_drf_results_track_list(request_date):
     return data
 
 
+def get_drf_entries_track_list(request_date):
+
+    # Get current track list
+    drf_format_date = request_date.strftime("%m-%d-%Y")
+    # https://www.drf.com/results/raceTracks/page/entries/date/05-08-2020
+    # https://www.drf.com/entries/entryDetails/id/GP/country/USA/date/05-07-2020
+    drf_track_url = f'https://www.drf.com/results/raceTracks/page/entries/date/{drf_format_date}'
+    with urllib.request.urlopen(drf_track_url) as url:
+        data = json.loads(url.read().decode())
+
+    # Return track list
+    return data
+
+
 def save_single_track_drf_odds_data_to_file(data, save_dir):
 
     # Get necessary data
@@ -909,11 +972,41 @@ def get_current_drf_results_track_list():
     return get_drf_results_track_list(datetime.datetime.now())
 
 
+def get_current_drf_entries_track_list():
+
+    # Wrapper for the current time
+    return get_drf_entries_track_list(datetime.datetime.now())
+
+
+def get_current_drf_entries_track_list():
+
+    # Wrapper for the current time
+    return get_drf_entries_track_list(datetime.datetime.now())
+
+
 def get_single_race_day_drf_results(date, track_id, country):
 
     # Form URL
     drf_format_date = date.strftime("%m-%d-%Y")
     race_url = f'https://www.drf.com/results/resultDetails/id/{track_id}/country/{country}/date/{drf_format_date}'
+
+    # Get Data
+    with urllib.request.urlopen(race_url) as url:
+        data = json.loads(url.read().decode())
+
+    data['drf_scrape'] = {
+        'time_scrape_utc': datetime.datetime.utcnow().isoformat()
+    }
+
+    # Return
+    return data
+
+
+def get_single_race_day_drf_entries(date, track_id, country):
+
+    # Form URL
+    drf_format_date = date.strftime("%m-%d-%Y")
+    race_url = f'https://www.drf.com/entries/entryDetails/id/{track_id}/country/{country}/date/{drf_format_date}'
 
     # Get Data
     with urllib.request.urlopen(race_url) as url:
@@ -1088,6 +1181,47 @@ if __name__ == '__main__':
                             for index, race_data in enumerate(results_data['races']):
                                 race_data['postTimeLong'] = results_data['allRaces'][index]['postTime']
                                 load_drf_results_data_into_database(race_data, current_scrape_time, db_session)
+
+            # Close everything out
+            db_session.close()
+            engine.dispose()
+
+    elif args.mode in ('entries', 'drf', 'all'):
+
+        # Check output directory
+        base_data_dir = args.output_dir.strip()
+        if base_data_dir == '' or not os.path.exists(base_data_dir):
+            print(f'The output directory of "{base_data_dir}" is invalid!')
+            exit(1)
+
+        # Get tracks
+        track_data = get_current_drf_entries_track_list()
+
+        # Loop if theres tracks
+        if len(track_data['raceTracks']['allTracks']) > 0:
+
+            # Connect to the database
+            engine = db_connect()
+            create_drf_live_table(engine, False)
+            session_maker_class = sessionmaker(bind=engine)
+            db_session = session_maker_class()
+
+            for current_track in track_data['raceTracks']['allTracks']:
+                for card in current_track['cards']:
+                    race_card_date_int = int(card['raceDate']['date'])/1000.0
+                    if race_card_date_int > 0:
+                        card_date = datetime.datetime.fromtimestamp(race_card_date_int)
+                        if card_date.date() >= datetime.datetime.now().date():
+                            results_data = get_single_race_day_drf_entries(
+                                card_date,
+                                current_track['trackId'],
+                                current_track['country']
+                            )
+                            current_scrape_time = datetime.datetime.fromisoformat(
+                                results_data['drf_scrape']['time_scrape_utc']
+                            )
+                            for index, race_data in enumerate(results_data['races']):
+                                load_drf_entries_data_into_database(race_data, current_scrape_time, db_session)
 
             # Close everything out
             db_session.close()
