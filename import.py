@@ -719,7 +719,9 @@ def load_drf_results_data_into_database(data, scrape_time, session):
         finish_position += 1
 
     # Parse finish position out of also ran
-    if isinstance(data['alsoRan'], list):
+    if data['alsoRan'] is None:
+        order_of_finish = []
+    elif isinstance(data['alsoRan'], list):
         order_of_finish = data['alsoRan']
     else:
         first_horses, last_horse = data['alsoRan'].split('  and   ')
@@ -1018,6 +1020,7 @@ if __name__ == '__main__':
             exit(1)
 
         # Get currently running tracks
+        track_data_list = list()
         track_data = get_current_drf_odds_track_list()
 
         if len(track_data) > 0:
@@ -1031,10 +1034,14 @@ if __name__ == '__main__':
             # Iterate through tracks
             for current_track in track_data:
                 if current_track['country'] == 'USA':
-                    race_data = get_single_track_data_from_drf(current_track)
-                    save_single_track_drf_odds_data_to_file(race_data, base_data_dir)
-                    current_scrape_time = datetime.datetime.fromisoformat(race_data['drf_scrape']['time_scrape_utc'])
-                    load_drf_odds_data_into_database(race_data, current_scrape_time, db_session)
+                    track_data_list.append(get_single_track_data_from_drf(current_track))
+
+            # Iterate through tracks
+            for race_data in track_data_list:
+                print(race_data)
+                save_single_track_drf_odds_data_to_file(race_data, base_data_dir)
+                current_scrape_time = datetime.datetime.fromisoformat(race_data['drf_scrape']['time_scrape_utc'])
+                load_drf_odds_data_into_database(race_data, current_scrape_time, db_session)
 
             # Close everything out
             db_session.close()
