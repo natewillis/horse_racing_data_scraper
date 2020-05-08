@@ -205,6 +205,12 @@ def load_drf_race_data_into_database(data, track, scrape_time, session):
     # Scraping info
     item['latest_scrape_time'] = scrape_time
 
+    # MTP
+    if 'mtpDisplay' in data:
+        if data['mtpDisplay'] is not None:
+            if data['mtpDisplay'].strip().upper() == 'OFF':
+                item['off_time'] = scrape_time
+
     # Check for existing record
     race = session.query(Races).filter(
         Races.track_id == item['track_id'],
@@ -226,6 +232,11 @@ def load_drf_race_data_into_database(data, track, scrape_time, session):
 
         # Set the new attributes
         for key, value in item.items():
+            # exception for off_time processing, only process off_time if its earlier than whats stored
+            if key == 'off_time':
+                if race.off_time is not None:
+                    if value > race.off_time:
+                        continue
             setattr(race, key, value)
 
     # Commit changes whichever way it went
@@ -271,8 +282,16 @@ def load_drf_jockey_data_into_database(runner, session):
 
     # Create Horse Dict
     item = dict()
-    item['first_name'] = runner['jockeyFirstName'].strip().upper()
-    item['last_name'] = runner['jockeyLastName'].strip().upper()
+    if 'jockeyFirstName' in runner: # results file
+        item['first_name'] = runner['jockeyFirstName'].strip().upper()
+        item['last_name'] = runner['jockeyLastName'].strip().upper()
+    elif 'jockey' in runner:
+        item['first_name'] = runner['jockey']['firstName'].strip().upper()
+        item['last_name'] = runner['jockey']['lastName'].strip().upper()
+        item['drf_jockey_id'] = runner['jockey']['id']
+        item['drf_jockey_type'] = runner['jockey']['type'].strip().upper()
+        if runner['jockey']['alias'] is not None:
+            item['alias'] = runner['jockey']['alias'].strip()
 
     # Check for existing record
     jockey = session.query(Jockeys).filter(
@@ -307,8 +326,16 @@ def load_drf_trainer_data_into_database(runner, session):
 
     # Create Horse Dict
     item = dict()
-    item['first_name'] = runner['trainerFirstName'].strip().upper()
-    item['last_name'] = runner['trainerLastName'].strip().upper()
+    if 'trainerFirstName' in runner:  # results file
+        item['first_name'] = runner['trainerFirstName'].strip().upper()
+        item['last_name'] = runner['trainerLastName'].strip().upper()
+    elif 'trainer' in runner:
+        item['first_name'] = runner['trainer']['firstName'].strip().upper()
+        item['last_name'] = runner['trainer']['lastName'].strip().upper()
+        item['drf_trainer_id'] = runner['trainer']['id']
+        item['drf_trainer_type'] = runner['trainer']['type'].strip().upper()
+        if runner['trainer']['alias'] is not None:
+            item['alias'] = runner['trainer']['alias'].strip()
 
     # Check for existing record
     trainer = session.query(Trainers).filter(
@@ -341,7 +368,7 @@ def load_drf_trainer_data_into_database(runner, session):
 
 def load_drf_owner_data_into_database(runner, session):
 
-    # Create Horse Dict
+    # Create Owner Dict
     item = dict()
     item['first_name'] = runner['ownerFirstName'].strip().upper()
     item['last_name'] = runner['ownerLastName'].strip().upper()
@@ -381,9 +408,12 @@ def load_drf_entry_data_into_database(runner, session, horse, race, trainer, joc
     item = dict()
     item['race_id'] = race.race_id
     item['horse_id'] = horse.horse_id
-    item['owner_id'] = owner.owner_id
-    item['trainer_id'] = trainer.trainer_id
-    item['jockey_id'] = jockey.jockey_id
+    if owner is not None:
+        item['owner_id'] = owner.owner_id
+    if trainer is not None:
+        item['trainer_id'] = trainer.trainer_id
+    if jockey is not None:
+        item['jockey_id'] = jockey.jockey_id
     if 'scratchIndicator' in runner:
         item['scratch_indicator'] = runner['scratchIndicator']
     else:
@@ -624,9 +654,7 @@ def load_drf_odds_data_into_database(data, scrape_time, session):
             return
 
         # Load Owner Data
-        owner = load_drf_owner_data_into_database(runner, session)
-        if owner is None:
-            return
+        owner = None
 
         # Load Entry Data
         entry = load_drf_entry_data_into_database(runner, session, horse, race, trainer, jockey, owner, 0)
@@ -661,29 +689,10 @@ def load_drf_results_data_into_database(data, scrape_time, session):
     load_drf_payoff_data_into_database(data, session, race)
 
     # Parse Runner Data
+    finish_position = 1
     for runner in data['runners']:
 
         # Load Horse Data
-        horse = load_drf_horse_data_into_database(runner, session)
-        if horse is None:
-            return
-
-        # Load Entry Data
-        entry = load_drf_entry_data_into_database(runner, session, horse, race, 0)
-        if entry is None:
-            return
-
-    # Parse finish position out of also ran
-    if isinstance(data['alsoRan'], list):
-        order_of_finish = data['alsoRan']
-    else:
-        first_horses, last_horse = data['alsoRan'].split('  and   ')
-        order_of_finish = first_horses.split(', ')
-        order_of_finish.append(last_horse)
-    for finish_index, horse_name in enumerate(order_of_finish):
-
-        # Load Horse Data
-        runner = {'horseName': horse_name.strip()}
         horse = load_drf_horse_data_into_database(runner, session)
         if horse is None:
             return
@@ -700,11 +709,32 @@ def load_drf_results_data_into_database(data, scrape_time, session):
 
         # Load Owner Data
         owner = load_drf_owner_data_into_database(runner, session)
-        if owner is None:
+
+        # Load Entry Data
+        entry = load_drf_entry_data_into_database(runner, session, horse, race, trainer, jockey, owner, finish_position)
+        if entry is None:
+            return
+
+        # Increment finish
+        finish_position += 1
+
+    # Parse finish position out of also ran
+    if isinstance(data['alsoRan'], list):
+        order_of_finish = data['alsoRan']
+    else:
+        first_horses, last_horse = data['alsoRan'].split('  and   ')
+        order_of_finish = first_horses.split(', ')
+        order_of_finish.append(last_horse)
+    for finish_index, horse_name in enumerate(order_of_finish):
+
+        # Load Horse Data
+        runner = {'horseName': horse_name.strip()}
+        horse = load_drf_horse_data_into_database(runner, session)
+        if horse is None:
             return
 
         # Load Entry Data
-        entry = load_drf_entry_data_into_database(runner, session, horse, race, trainer, jockey, owner, finish_index+4)
+        entry = load_drf_entry_data_into_database(runner, session, horse, race, None, None, None, finish_index+4)
         if entry is None:
             return
 
@@ -1116,6 +1146,8 @@ if __name__ == '__main__':
         wait_until_flag = ''
         # Load file into database
         for odds_file in odds_file_list:
+            if odds_file != 'Z:\\data\\drf\\FON\\2020\\4\\27\\FON_20200427_1_20200427T210502_odds.json':
+                continue
             print(f'Working on {odds_file}')
             if wait_until_flag != '':
                 if odds_file == wait_until_flag:
@@ -1125,6 +1157,7 @@ if __name__ == '__main__':
             odds_data = get_single_drf_odds_track_data_from_file(odds_file)
             current_scrape_time = datetime.datetime.fromisoformat(odds_data['drf_scrape']['time_scrape_utc'])
             load_drf_odds_data_into_database(odds_data, current_scrape_time, db_session)
+            break
 
         # Get list of results files to parse
         results_file_list = sorted(get_all_drf_results_json_filenames_from_storage(base_data_dir))
@@ -1137,6 +1170,7 @@ if __name__ == '__main__':
             for index, race_data in enumerate(results_data['races']):
                 race_data['postTimeLong'] = results_data['allRaces'][index]['postTime']
                 load_drf_results_data_into_database(race_data, current_scrape_time, db_session)
+            break
 
         # Close everything out
         db_session.close()

@@ -40,6 +40,9 @@ class Jockeys(base):
     jockey_id = Column('jockey_id', Integer, primary_key=True)
     first_name = Column('first_name', String)
     last_name = Column('last_name', String)
+    drf_jockey_id = Column('drf_jockey_id', Integer)
+    drf_jockey_type = Column('drf_jockey_type', String)
+    alias = Column('alias', String)
 
 
 class Trainers(base):
@@ -48,6 +51,9 @@ class Trainers(base):
     trainer_id = Column('trainer_id', Integer, primary_key=True)
     first_name = Column('first_name', String)
     last_name = Column('last_name', String)
+    drf_trainer_id = Column('drf_trainer_id', Integer)
+    drf_trainer_type = Column('drf_trainer_type', String)
+    alias = Column('alias', String)
 
 
 class Owners(base):
@@ -82,6 +88,9 @@ class Races(base):
     race_type = Column('race_type', String, nullable=True)
     breed = Column('breed', String, nullable=True)
     track_condition = Column('track_condition', String, nullable=True)
+
+    # Inferred Data
+    off_time = Column('off_time', DateTime)
 
     # Types of Parsing
     drf_results = Column('drf_results', Boolean, default=False)
