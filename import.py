@@ -171,7 +171,9 @@ def load_drf_race_data_into_database(data, track, scrape_time, session):
         post_time = post_time_local.astimezone(timezone('UTC'))
 
     else:
-        post_time = datetime.datetime.fromtimestamp(data['postTimeLong'] / 1000.0)  # UTC Already
+        post_time_local = datetime.datetime.fromtimestamp(data['postTimeLong'] / 1000.0)  # Not UTC already
+        post_time_aware = post_time_local.replace(tzinfo=timezone(track.time_zone))
+        post_time = post_time_aware.astimezone(timezone('UTC'))
 
     # Identifying Info
     item['track_id'] = track.track_id
