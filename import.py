@@ -4,11 +4,12 @@ import datetime
 import os
 import argparse
 from pytz import timezone, utc
-from models import db_connect, Races, Horses, Entries, EntryPools, Payoffs, Probables, create_drf_live_table
+from models import db_connect, Races, Horses, Entries, EntryPools, Payoffs, Probables, create_drf_live_table, Tracks, \
+    Jockeys, Owners, Trainers
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import func
 from pint import UnitRegistry
-
+import csv
 
 def s2f(x):
     try:
@@ -62,7 +63,69 @@ def convert_drf_distance_description_to_furlongs(distance_string):
     return distance.to(ureg.furlong).magnitude
 
 
-def load_drf_race_data_into_database(data, scrape_time, session):
+def load_drf_track_data_into_database(data, session):
+
+    # Time Zone Dict
+    time_zone_dict = {
+        'E': 'US/Eastern',
+        'C': 'US/Central',
+        'M': 'US/Mountain',
+        'P': 'US/Pacific'
+    }
+
+    # Create Track Dict
+    item = dict()
+    if 'raceKey' in data:
+        if 'trackId' in data['raceKey']:
+            item['code'] = data['raceKey']['trackId'].strip().upper()
+        if 'country' in data['raceKey']:
+            item['country'] = data['raceKey']['country'].strip().upper()
+        else:
+            item['country'] = 'USA'
+
+    if 'code' not in item:
+        return
+
+    if 'trackName' in data:
+        item['name'] = data['trackName'].strip().upper()
+
+    if 'timeZone' in data:
+        if data['timeZone'].strip().upper() in time_zone_dict:
+            item['time_zone'] = time_zone_dict[data['timeZone'].strip().upper()]
+        else:
+            item['time_zone'] = 'US/Pacific'
+    else:
+        item['time_zone'] = 'US/Pacific'
+
+    # Check for existing record
+    track = session.query(Tracks).filter(
+        Tracks.code == item['code']
+    ).first()
+
+    # If its new, create a new one in the database
+    if track is None:
+
+        # Process Race
+        track = Tracks(**item)
+
+        # Add To Table (after commit, id is filled in)
+        session.add(track)
+
+    # Otherwise, update the record with the new values and commit it
+    else:
+
+        # Set the new attributes
+        for key, value in item.items():
+            setattr(track, key, value)
+
+    # Commit changes whichever way it went
+    session.commit()
+
+    # Return race instance
+    return track
+
+
+def load_drf_race_data_into_database(data, track, scrape_time, session):
 
     # Create Race Dict
     item = dict()
@@ -96,18 +159,6 @@ def load_drf_race_data_into_database(data, scrape_time, session):
         if post_time_hour < 0 or post_time_hour > 23:
              print(f'{post_time_string} is weird!')
 
-        # Get Time Zone
-        if data['timeZone'] != 'NaN':
-            time_zone_dict = {
-                'E': 'US/Eastern',
-                'C': 'US/Central',
-                'M': 'US/Mountain',
-                'P': 'US/Pacific'
-            }
-            time_zone_selection = time_zone_dict.get(data['timeZone'], 'Invalid')
-            if time_zone_selection == 'Invalid':
-                print(f'{data["timeZone"]} is not a valid timezone')
-
         # Assemble Time
         post_time_local = datetime.datetime(
             year=data['raceKey']['raceDate']['year'],
@@ -115,7 +166,7 @@ def load_drf_race_data_into_database(data, scrape_time, session):
             day=data['raceKey']['raceDate']['day'],
             hour=post_time_hour,
             minute=post_time_minute,
-            tzinfo=timezone(time_zone_selection)
+            tzinfo=timezone(track.time_zone)
         )
         post_time = post_time_local.astimezone(timezone('UTC'))
 
@@ -123,7 +174,7 @@ def load_drf_race_data_into_database(data, scrape_time, session):
         post_time = datetime.datetime.fromtimestamp(data['postTimeLong'] / 1000.0)  # UTC Already
 
     # Identifying Info
-    item['track_id'] = data['raceKey']['trackId']
+    item['track_id'] = track.track_id
     item['race_number'] = data['raceKey']['raceNumber']
     item['post_time'] = post_time  # UTC Already
     item['day_evening'] = data['raceKey']['dayEvening']
@@ -143,14 +194,13 @@ def load_drf_race_data_into_database(data, scrape_time, session):
     # Results
     if 'payoffs' in data:
         # Results Datafiles
-        item['results'] = True
+        item['drf_results'] = True
         item['purse'] = int(data['totalPurse'].replace(',', ''))
         item['track_condition'] = data['trackConditionDescription']
     else:
         # Odds Datafiles
         item['purse'] = data['purse']
         item['wager_text'] = data['wagerText']
-
 
     # Scraping info
     item['latest_scrape_time'] = scrape_time
@@ -217,12 +267,123 @@ def load_drf_horse_data_into_database(runner, session):
     return horse
 
 
-def load_drf_entry_data_into_database(runner, session, horse, race, finish_position):
+def load_drf_jockey_data_into_database(runner, session):
+
+    # Create Horse Dict
+    item = dict()
+    item['first_name'] = runner['jockeyFirstName'].strip().upper()
+    item['last_name'] = runner['jockeyLastName'].strip().upper()
+
+    # Check for existing record
+    jockey = session.query(Jockeys).filter(
+        Jockeys.first_name == item['first_name'],
+        Jockeys.last_name == item['last_name']
+    ).first()
+
+    # If its new, create a new one in the database
+    if jockey is None:
+
+        # Process New Record
+        jockey = Jockeys(**item)
+
+        # Add To Table (after commit, d is filled in)
+        session.add(jockey)
+
+    # Otherwise, update the record with the new values and commit it
+    else:
+
+        # Set the new attributes
+        for key, value in item.items():
+            setattr(jockey, key, value)
+
+    # Commit changes whichever way it went
+    session.commit()
+
+    # Return horse record
+    return jockey
+
+
+def load_drf_trainer_data_into_database(runner, session):
+
+    # Create Horse Dict
+    item = dict()
+    item['first_name'] = runner['trainerFirstName'].strip().upper()
+    item['last_name'] = runner['trainerLastName'].strip().upper()
+
+    # Check for existing record
+    trainer = session.query(Trainers).filter(
+        Trainers.first_name == item['first_name'],
+        Trainers.last_name == item['last_name']
+    ).first()
+
+    # If its new, create a new one in the database
+    if trainer is None:
+
+        # Process New Record
+        trainer = Trainers(**item)
+
+        # Add To Table (after commit, d is filled in)
+        session.add(trainer)
+
+    # Otherwise, update the record with the new values and commit it
+    else:
+
+        # Set the new attributes
+        for key, value in item.items():
+            setattr(trainer, key, value)
+
+    # Commit changes whichever way it went
+    session.commit()
+
+    # Return horse record
+    return trainer
+
+
+def load_drf_owner_data_into_database(runner, session):
+
+    # Create Horse Dict
+    item = dict()
+    item['first_name'] = runner['ownerFirstName'].strip().upper()
+    item['last_name'] = runner['ownerLastName'].strip().upper()
+
+    # Check for existing record
+    owner = session.query(Owners).filter(
+        Owners.first_name == item['first_name'],
+        Owners.last_name == item['last_name']
+    ).first()
+
+    # If its new, create a new one in the database
+    if owner is None:
+
+        # Process New Record
+        owner = Owners(**item)
+
+        # Add To Table (after commit, d is filled in)
+        session.add(owner)
+
+    # Otherwise, update the record with the new values and commit it
+    else:
+
+        # Set the new attributes
+        for key, value in item.items():
+            setattr(owner, key, value)
+
+    # Commit changes whichever way it went
+    session.commit()
+
+    # Return horse record
+    return owner
+
+
+def load_drf_entry_data_into_database(runner, session, horse, race, trainer, jockey, owner, finish_position):
 
     # Create Entry Dict
     item = dict()
     item['race_id'] = race.race_id
     item['horse_id'] = horse.horse_id
+    item['owner_id'] = owner.owner_id
+    item['trainer_id'] = trainer.trainer_id
+    item['jockey_id'] = jockey.jockey_id
     if 'scratchIndicator' in runner:
         item['scratch_indicator'] = runner['scratchIndicator']
     else:
@@ -431,8 +592,13 @@ def load_drf_probable_data_into_database(data, session, race, scrape_time):
 
 def load_drf_odds_data_into_database(data, scrape_time, session):
 
+    # Track Info
+    track = load_drf_track_data_into_database(data, session)
+    if track is None:
+        return
+
     # Race Info
-    race = load_drf_race_data_into_database(data, scrape_time, session)
+    race = load_drf_race_data_into_database(data, track, scrape_time, session)
     if race is None:
         return
 
@@ -447,8 +613,23 @@ def load_drf_odds_data_into_database(data, scrape_time, session):
         if horse is None:
             return
 
+        # Load Trainer Data
+        trainer = load_drf_trainer_data_into_database(runner, session)
+        if trainer is None:
+            return
+
+        # Load Jockey Data
+        jockey = load_drf_jockey_data_into_database(runner, session)
+        if jockey is None:
+            return
+
+        # Load Owner Data
+        owner = load_drf_owner_data_into_database(runner, session)
+        if owner is None:
+            return
+
         # Load Entry Data
-        entry = load_drf_entry_data_into_database(runner, session, horse, race, 0)
+        entry = load_drf_entry_data_into_database(runner, session, horse, race, trainer, jockey, owner, 0)
         if entry is None:
             return
 
@@ -466,8 +647,13 @@ def load_drf_odds_data_into_database(data, scrape_time, session):
 
 def load_drf_results_data_into_database(data, scrape_time, session):
 
+    # Track Info
+    track = load_drf_track_data_into_database(data, session)
+    if track is None:
+        return
+
     # Race Info
-    race = load_drf_race_data_into_database(data, scrape_time, session)
+    race = load_drf_race_data_into_database(data, track, scrape_time, session)
     if race is None:
         return
 
@@ -502,8 +688,23 @@ def load_drf_results_data_into_database(data, scrape_time, session):
         if horse is None:
             return
 
+        # Load Trainer Data
+        trainer = load_drf_trainer_data_into_database(runner, session)
+        if trainer is None:
+            return
+
+        # Load Jockey Data
+        jockey = load_drf_jockey_data_into_database(runner, session)
+        if jockey is None:
+            return
+
+        # Load Owner Data
+        owner = load_drf_owner_data_into_database(runner, session)
+        if owner is None:
+            return
+
         # Load Entry Data
-        entry = load_drf_entry_data_into_database(runner, session, horse, race, finish_index+4)
+        entry = load_drf_entry_data_into_database(runner, session, horse, race, trainer, jockey, owner, finish_index+4)
         if entry is None:
             return
 
@@ -737,7 +938,7 @@ def get_races_with_no_results(session):
 
     # Query Races
     races = session.query(Races).\
-        filter_by(results=False).\
+        filter_by(drf_results=False).\
         filter(Races.post_time <= datetime.datetime.utcnow()).all()
 
     # Organize in list
@@ -875,7 +1076,7 @@ if __name__ == '__main__':
 
             # Double check its still missing data
             race = db_session.query(Races).filter_by(race_id=current_race['race_id']).one()
-            if race.results:
+            if race.drf_results:
                 continue
 
             # Get data
@@ -940,6 +1141,9 @@ if __name__ == '__main__':
         # Close everything out
         db_session.close()
         engine.dispose()
+
+    elif args.mode in ('test'):
+        pass
 
     else:
 

@@ -23,6 +23,41 @@ def create_drf_live_table(engine, destroy_flag):
     base.metadata.create_all(engine)
 
 
+class Tracks(base):
+    """Sqlalchemy Races model"""
+    __tablename__ = "tracks"
+
+    track_id = Column(Integer, primary_key=True)
+    code = Column('code', String)
+    name = Column('name', String)
+    time_zone = Column('time_zone', String)
+    country = Column('country', String)
+
+
+class Jockeys(base):
+    """Sqlalchemy Jockey model"""
+    __tablename__ = "jockeys"
+    jockey_id = Column('jockey_id', Integer, primary_key=True)
+    first_name = Column('first_name', String)
+    last_name = Column('last_name', String)
+
+
+class Trainers(base):
+    """Sqlalchemy Jockey model"""
+    __tablename__ = "trainers"
+    trainer_id = Column('trainer_id', Integer, primary_key=True)
+    first_name = Column('first_name', String)
+    last_name = Column('last_name', String)
+
+
+class Owners(base):
+    """Sqlalchemy Jockey model"""
+    __tablename__ = "owners"
+    owner_id = Column('owner_id', Integer, primary_key=True)
+    first_name = Column('first_name', String)
+    last_name = Column('last_name', String)
+
+
 class Races(base):
     """Sqlalchemy Races model"""
     __tablename__ = "races"
@@ -30,7 +65,7 @@ class Races(base):
     race_id = Column(Integer, primary_key=True)
 
     # Identifying Info
-    track_id = Column('track_id', String)
+    track_id = Column('track_id', Integer, ForeignKey('tracks.track_id'))
     race_number = Column('race_number', Integer)
     post_time = Column('post_time', DateTime)  # UTC
     day_evening = Column('day_evening', String)
@@ -48,28 +83,12 @@ class Races(base):
     breed = Column('breed', String, nullable=True)
     track_condition = Column('track_condition', String, nullable=True)
 
-    # Results
-    results = Column('results', Boolean, default=False)
+    # Types of Parsing
+    drf_results = Column('drf_results', Boolean, default=False)
+    drf_live_odds = Column('drf_live_odds', Boolean, default=False)
 
     # Scraping Info
     latest_scrape_time = Column('latest_scrape_time', DateTime)  # UTC
-
-    def live_odds_link(self):
-        utc_datetime = self.post_time.replace(tzinfo=timezone('UTC'))
-        eastern_datetime = utc_datetime.astimezone(timezone('US/Eastern'))
-        return (f'http://www.drf.com/liveOdds/tracksPoolDetails'
-                f'/currentRace/{self.race_number}'
-                f'/trackId/{self.track_id}' 
-                f'/country/{self.country}'
-                f'/dayEvening/{self.day_evening}'
-                f'/date/{eastern_datetime.strftime("%m-%d-%Y")}')
-
-    def results_link(self):
-        utc_datetime = self.post_time.replace(tzinfo=timezone('UTC'))
-        eastern_datetime = utc_datetime.astimezone(timezone('US/Eastern'))
-        return("https://www.drf.com/results/resultDetails/id/" +
-               self.track_id + "/country/" + self.country +
-               "/date/" + eastern_datetime.strftime("%m-%d-%Y"))
 
 
 class Horses(base):
@@ -93,6 +112,9 @@ class Entries(base):
     scratch_indicator = Column('scratch_indicator', String)
     post_position = Column('post_position', Integer, nullable=True)
     program_number = Column('program_number', String, nullable=True)
+    trainer_id = Column('trainer_id', Integer, ForeignKey('trainers.trainer_id'))
+    jockey_id = Column('jockey_id', Integer, ForeignKey('jockeys.jockey_id'))
+    owner_id = Column('owner_id', Integer, ForeignKey('owners.owner_id'))
 
     # Results
     win_payoff = Column('win_payoff', Float, default=0)
