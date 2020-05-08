@@ -494,7 +494,7 @@ def load_drf_odds_entry_pool_data_into_database(runner, session, entry, scrape_t
         item['dollar'] = float(data_pool['dollar'])
 
         # Check for existing record
-        if 1==1:
+        if 1 != 1:
             entry_pool = session.query(EntryPools).filter(
                 EntryPools.entry_id == item['entry_id'],
                 EntryPools.scrape_time == item['scrape_time'],
@@ -590,7 +590,7 @@ def load_drf_probable_data_into_database(data, session, race, scrape_time):
             item['probable_pool_amount'] = probable_dict['poolAmount']
 
             # Check for existing record
-            if 1==1:
+            if 1 != 1:
                 probable_record = session.query(Probables).filter(
                     Probables.race_id == item['race_id'],
                     Probables.probable_type == item['probable_type'],
