@@ -1038,7 +1038,6 @@ if __name__ == '__main__':
 
             # Iterate through tracks
             for race_data in track_data_list:
-                print(race_data)
                 save_single_track_drf_odds_data_to_file(race_data, base_data_dir)
                 current_scrape_time = datetime.datetime.fromisoformat(race_data['drf_scrape']['time_scrape_utc'])
                 load_drf_odds_data_into_database(race_data, current_scrape_time, db_session)
