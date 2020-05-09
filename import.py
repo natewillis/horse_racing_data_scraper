@@ -142,37 +142,23 @@ def load_drf_race_data_into_database(data, track, scrape_time, session):
             print('both post time strings are bad')
             return
 
-        # Strip out the components of the post time
-        post_time_time_part, post_time_am_pm = post_time_string.split(' ')
-        post_time_hour, post_time_minute = post_time_time_part.split(':')
-        if post_time_am_pm == 'PM':
-            if int(post_time_hour) < 12:
-                post_time_hour = int(post_time_hour) + 12
-            else:
-                post_time_hour = int(post_time_hour)
-        else:
-            if int(post_time_hour) < 12:
-                post_time_hour = int(post_time_hour)
-            else:
-                post_time_hour = int(post_time_hour) - 12
-        post_time_minute = int(post_time_minute)
-        if post_time_hour < 0 or post_time_hour > 23:
-             print(f'{post_time_string} is weird!')
-
-        # Assemble Time
-        post_time_local = datetime.datetime(
-            year=data['raceKey']['raceDate']['year'],
-            month=data['raceKey']['raceDate']['month']+1,
-            day=data['raceKey']['raceDate']['day'],
-            hour=post_time_hour,
-            minute=post_time_minute,
-            tzinfo=timezone(track.time_zone)
+        # Let python do the processing
+        post_time_local_naive = datetime.datetime.strptime(
+            f'{data["raceKey"]["raceDate"]["year"]}-'
+            f'{data["raceKey"]["raceDate"]["month"]+1}-'
+            f'{data["raceKey"]["raceDate"]["day"]} '
+            f'{post_time_string}',
+            '%Y-%m-%d %I:%M %p'
         )
-        post_time = post_time_local.astimezone(timezone('UTC')).replace(tzinfo=None)
+        tz = timezone(track.time_zone)
+        post_time_local_aware = tz.localize(post_time_local_naive)
+        post_time = post_time_local_aware.astimezone(timezone('UTC')).replace(tzinfo=None)
 
     else:
+
+        tz = timezone(track.time_zone)
         post_time_local = datetime.datetime.fromtimestamp(data['postTimeLong'] / 1000.0)  # Not UTC already
-        post_time_aware = post_time_local.replace(tzinfo=timezone(track.time_zone))
+        post_time_aware = tz.localize(post_time_local)
         post_time = post_time_aware.astimezone(timezone('UTC')).replace(tzinfo=None)
 
 
@@ -1285,12 +1271,10 @@ if __name__ == '__main__':
         db_session = session_maker_class()
 
         # Get list of odds files to parse
-        odds_file_list = sorted(get_all_drf_odds_json_filenames_from_storage(base_data_dir))
+        odds_file_list = sorted(get_all_drf_odds_json_filenames_from_storage(base_data_dir), reverse=True)
         wait_until_flag = ''
         # Load file into database
         for odds_file in odds_file_list:
-            if odds_file != 'Z:\\data\\drf\\FON\\2020\\4\\27\\FON_20200427_1_20200427T210502_odds.json':
-                continue
             print(f'Working on {odds_file}')
             if wait_until_flag != '':
                 if odds_file == wait_until_flag:
