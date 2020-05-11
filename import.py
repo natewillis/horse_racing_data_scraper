@@ -25,6 +25,59 @@ def p2f(x):
         return 'NaN'
 
 
+def import_track_codes():
+
+    # Set file name
+    file_name = 'track_codes.csv'
+
+    # Connect to the database
+    db_engine = db_connect()
+    create_drf_live_table(db_engine, False)
+    smc = sessionmaker(bind=db_engine)
+    session = smc()
+
+    with open(file_name) as csv_file:
+        csv_reader = csv.reader(csv_file, delimiter=',')
+        for row in csv_reader:
+
+            # Parse CSV into Variables
+            item = {
+                'code': row[0].strip().upper(),
+                'name': row[2].strip().upper(),
+                'time_zone': row[3].strip()
+            }
+
+            # Check for existing record
+            track = session.query(Tracks).filter(
+                Tracks.code == item['code']
+            ).first()
+
+            # If its new, create a new one in the database
+            if track is None:
+
+                # Process Race
+                track = Tracks(**item)
+
+                # Add To Table (after commit, id is filled in)
+                session.add(track)
+
+            # Otherwise, update the record with the new values and commit it
+            else:
+
+                # Set the new attributes
+                for key, value in item.items():
+
+                    # Set the attributes
+                    setattr(track, key, value)
+
+            # Commit changes whichever way it went
+            session.commit()
+
+    # Close everything out
+    session.close()
+    db_engine.dispose()
+
+
 def convert_drf_distance_description_to_furlongs(distance_string):
 
     # Load unit conversion
@@ -116,6 +169,14 @@ def load_drf_track_data_into_database(data, session):
 
         # Set the new attributes
         for key, value in item.items():
+
+            # Time zone on DRF is wrong so just leave it set if we can
+            if key == 'time_zone':
+                if track.time_zone is not None:
+                    if track.time_zone != '':
+                        continue
+
+            # Set the attributes
             setattr(track, key, value)
 
     # Commit changes whichever way it went
@@ -150,9 +211,10 @@ def load_drf_race_data_into_database(data, track, scrape_time, session):
             f'{post_time_string}',
             '%Y-%m-%d %I:%M %p'
         )
-        tz = timezone(track.time_zone)
+        tz = timezone('US/Eastern')  # Display time is always eastern
         post_time_local_aware = tz.localize(post_time_local_naive)
         post_time = post_time_local_aware.astimezone(timezone('UTC')).replace(tzinfo=None)
+        print(f'string of {post_time_string}  for {track.name}-{data["raceKey"]["raceNumber"]} is {post_time}')
 
     else:
 
@@ -160,7 +222,7 @@ def load_drf_race_data_into_database(data, track, scrape_time, session):
         post_time_local = datetime.datetime.fromtimestamp(data['postTimeLong'] / 1000.0)  # Not UTC already
         post_time_aware = tz.localize(post_time_local)
         post_time = post_time_aware.astimezone(timezone('UTC')).replace(tzinfo=None)
-
+        print(f'local of {post_time_local} for {track.name}-{data["raceKey"]["raceNumber"]}  is {post_time}')
 
     # Identifying Info
     item['track_id'] = track.track_id
@@ -1182,6 +1244,7 @@ if __name__ == '__main__':
 
         # Get tracks
         track_data = get_current_drf_entries_track_list()
+        print(track_data)
 
         # Loop if theres tracks
         if len(track_data['raceTracks']['allTracks']) > 0:
@@ -1194,9 +1257,14 @@ if __name__ == '__main__':
 
             for current_track in track_data['raceTracks']['allTracks']:
                 for card in current_track['cards']:
-                    race_card_date_int = int(card['raceDate']['date'])/1000.0
-                    if race_card_date_int > 0:
-                        card_date = datetime.datetime.fromtimestamp(race_card_date_int)
+                    if card['raceDate']['year'] is not None and \
+                            card['raceDate']['month'] is not None and \
+                            card['raceDate']['day'] is not None:
+                        card_date = datetime.datetime(
+                            year=card['raceDate']['year'],
+                            month=(card['raceDate']['month']+1),
+                            day=card['raceDate']['day']
+                        )
                         if card_date.date() >= datetime.datetime.now().date():
                             results_data = get_single_race_day_drf_entries(
                                 card_date,
@@ -1303,7 +1371,12 @@ if __name__ == '__main__':
         db_session.close()
         engine.dispose()
 
+    elif args.mode in ('track_codes'):
+
+        import_track_codes()
+
     elif args.mode in ('test'):
+
         pass
 
     else:
