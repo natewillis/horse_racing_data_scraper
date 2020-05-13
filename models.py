@@ -1,26 +1,8 @@
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, Float, ForeignKey, Boolean
+from sqlalchemy import Column, Integer, String, DateTime, Float, ForeignKey, Boolean, Date
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.engine.url import URL
-from settings import DATABASE
-from pytz import timezone
 
 # Setup base
 base = declarative_base()
-
-
-def db_connect():
-    """
-    Performs database connection using database settings from settings.py.
-    Returns sqlalchemy engine instance
-    """
-    return create_engine(URL(**DATABASE))
-
-
-def create_drf_live_table(engine, destroy_flag):
-    """"""
-    if destroy_flag:
-        base.metadata.drop_all(bind=engine)
-    base.metadata.create_all(engine)
 
 
 class Tracks(base):
@@ -73,11 +55,12 @@ class Races(base):
     # Identifying Info
     track_id = Column('track_id', Integer, ForeignKey('tracks.track_id'))
     race_number = Column('race_number', Integer)
-    post_time = Column('post_time', DateTime)  # UTC
+    card_date = Column('card_date', Date)
     day_evening = Column('day_evening', String)
     country = Column('country', String)
 
     # Race Info
+    post_time = Column('post_time', DateTime)  # UTC
     distance = Column('distance', Float)  # In furlongs
     purse = Column('purse', Integer, nullable=True)
     age_restriction = Column('age_restriction', String, nullable=True)
@@ -176,3 +159,33 @@ class Probables(base):
     program_numbers = Column('program_numbers', String)
     probable_value = Column('probable_value', Float)
     probable_pool_amount = Column('probable_pool_amount', Float)
+
+
+class Picks(base):
+    __tablename__ = "picks"
+    pick_id = Column('pick_id', Integer, primary_key=True)
+    bettor_family = Column('bettor_family', String)
+    bettor_name = Column('bettor_name', String)
+    race_id = Column('race_id', Integer, ForeignKey('races.race_id'))  # The race the ticket would collect (last race)
+    bet_type = Column('bet_type', String)
+    bet_cost = Column('bet_cost', Float)
+    bet_return = Column('bet_return', Float, default=0)
+    bet_win_text = Column('bet_win_text', String)
+    bet_origin_date = Column('bet_origin_date', DateTime)
+
+
+class BettingResults(base):
+    """Sqlalchemy Races model"""
+    __tablename__ = "betting_results"
+
+    betting_result_id = Column('betting_result_id', Integer, primary_key=True)
+    strategy = Column('strategy', String)
+    track_id = Column('track_id', String)
+    bet_type_text = Column('bet_type_text', String)
+    time_frame_text = Column('time_frame_text', String)
+    bet_count = Column('bet_count', Integer)
+    bet_cost = Column('bet_cost', Float)
+    bet_return = Column('bet_return', Float)
+    bet_roi = Column('bet_roi', Float)
+    bet_success_count = Column('bet_success_count', Integer)
+    update_time = Column('update_time', DateTime)
