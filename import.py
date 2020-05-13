@@ -8,7 +8,7 @@ from pytz import timezone, utc
 from db_utils import get_db_session, shutdown_session_and_engine, create_new_instance_from_item, \
     load_item_into_database, find_instance_from_item
 from utils import get_list_of_files
-from models import Races, Tracks
+from models import Races, Tracks, Picks
 import csv
 from drf import create_track_item_from_drf_data, create_race_item_from_drf_data, create_horse_item_from_drf_data, \
     create_jockey_item_from_drf_data, create_trainer_item_from_drf_data, create_entry_item_from_drf_data, \
@@ -544,11 +544,6 @@ def load_brisnet_spot_play_into_database(data, session):
     pick = find_instance_from_item(pick_item, 'pick', session)
     if pick is None:
         pick = load_item_into_database(pick_item, 'pick', session)
-
-
-def evaluate_pick_returns(session):
-
-    picks = session.query()
 
 
 if __name__ == '__main__':
