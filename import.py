@@ -65,7 +65,7 @@ def load_drf_odds_data_into_database(data, scrape_time, session):
     if data['wagerToteProbables'] is not None:
         for probable_type in data['wagerToteProbables']:
             for probable_dict in data['wagerToteProbables'][probable_type]:
-                probable_item = create_probable_item_from_drf_data(probable_dict, track, scrape_time)
+                probable_item = create_probable_item_from_drf_data(probable_dict, race, scrape_time)
 
                 # We're creating a new instance instead of loading the item due to database constraints
                 probable = create_new_instance_from_item(probable_item, 'probable', session)
