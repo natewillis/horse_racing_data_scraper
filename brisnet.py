@@ -5,6 +5,7 @@ import re
 import datetime
 import time
 from settings import SELENIUM_DRIVER_PATH
+from sqlalchemy.sql import null
 
 
 def create_driver():
@@ -181,7 +182,7 @@ def create_pick_item_from_brisnet_spot_play(spot_play, race, entry):
     item['race_id'] = race.race_id
     item['bet_type'] = 'WIN'
     item['bet_cost'] = 2
-    item['bet_return'] = None
+    item['bet_return'] = null()
     item['bet_win_text'] = entry.program_number
     item['bet_origin_date'] = datetime.datetime.now()
 

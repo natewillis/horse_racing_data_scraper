@@ -691,20 +691,6 @@ if __name__ == '__main__':
         # Close everything out
         shutdown_session_and_engine(db_session)
 
-    if args.mode in ('pick_evaluation'):
-
-        # Mode Tracking
-        modes_run.append('pick_evaluation')
-
-        # Connect to the database
-        db_session = get_db_session()
-
-        # Get the picks
-        evaluate_pick_returns(db_session)
-
-        # Close everything out
-        shutdown_session_and_engine(db_session)
-
     if args.mode in ('reset_tables'):
 
         # Mode Tracking
