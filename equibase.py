@@ -660,6 +660,8 @@ def get_db_items_from_equibase_horse_html(html):
         if not track_td:
             continue
         track_href = track_td.find('a')
+        if not track_href:
+            continue
         track_url = track_href['href']
         track_url_pattern = r'/profiles/Results\.cfm\?type=Track&trk=([A-Z]+)&cy=([A-Z]+)'
         track_url_search_obj = re.search(track_url_pattern, track_url)
