@@ -60,7 +60,7 @@ def bypass_distil_get_html(url):
 
     # Figure out which system we're on
     windows_chrome_path = 'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe'
-    centos_chrome_path = 'google_chrome'
+    centos_chrome_path = 'google-chrome'
     chrome_path = ''
     if os.path.exists(windows_chrome_path):
         chrome_path = windows_chrome_path
