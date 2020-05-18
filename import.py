@@ -653,8 +653,28 @@ def get_equibase_entry_links_for_races_without_entries(session):
     # Return completed list
     return link_list
 
+
 def get_equibase_horse_links_for_entry_horses_without_details(session):
-    pass
+
+    # Init link list
+    link_list = []
+
+    # Perform Query
+    horses = session.query(Horses).join(Entries).join(Races).filter(
+        Entries.equibase_history_scrape.is_(False),
+        Races.equibase_entries.is_(True),
+        Horses.equibase_horse_id.isnot(None)
+    ).all()
+
+    # Create URLs
+    for horse in horses:
+        link_list.append(get_equibase_horse_history_link_from_horse(horse))
+
+    # Remove duplicates
+    link_list = list(dict.fromkeys(link_list))
+
+    # Return list
+    return link_list
 
 
 if __name__ == '__main__':
@@ -870,17 +890,8 @@ if __name__ == '__main__':
         # Connect to the database
         db_session = get_db_session()
 
-        link_list = get_equibase_entry_links_for_races_without_entries(db_session)
+        link_list = get_equibase_horse_links_for_entry_horses_without_details(db_session)
         print(link_list)
-
-        with open('E:\\CodeRepo\\test_equibase\\entry_GP051720USA-EQB.html', 'r') as html_file:
-            html = html_file.read()
-
-        db_items = get_db_items_from_equibase_whole_card_entry_html(html)
-        print(f'The number of races returned are {len(db_items)}')
-        for race_item in db_items:
-            print(f'The number of horses in race {race_item["race_item"]["race_number"]} is {len(race_item["entry_items"])}')
-            print(race_item)
 
         # Close everything out
         shutdown_session_and_engine(db_session)
