@@ -14,6 +14,7 @@ class Tracks(base):
     name = Column('name', String)
     time_zone = Column('time_zone', String)
     country = Column('country', String)
+    rp_track_code = Column('rp_track_code', Integer)
 
 
 class Jockeys(base):
@@ -25,6 +26,8 @@ class Jockeys(base):
     drf_jockey_id = Column('drf_jockey_id', Integer)
     drf_jockey_type = Column('drf_jockey_type', String)
     alias = Column('alias', String)
+    equibase_jockey_id = Column('equibase_jockey_id', Integer)
+    equibase_jockey_type = Column('equibase_jockey_type', String)
 
 
 class Trainers(base):
@@ -36,6 +39,8 @@ class Trainers(base):
     drf_trainer_id = Column('drf_trainer_id', Integer)
     drf_trainer_type = Column('drf_trainer_type', String)
     alias = Column('alias', String)
+    equibase_trainer_id = Column('equibase_trainer_id', Integer)
+    equibase_trainer_type = Column('equibase_trainer_type', String)
 
 
 class Owners(base):
@@ -44,6 +49,8 @@ class Owners(base):
     owner_id = Column('owner_id', Integer, primary_key=True)
     first_name = Column('first_name', String)
     last_name = Column('last_name', String)
+    equibase_owner_id = Column('equibase_owner_id', Integer)
+    equibase_owner_type = Column('equibase_owner_type', String)
 
 
 class Races(base):
@@ -82,6 +89,8 @@ class Races(base):
     drf_results = Column('drf_results', Boolean, default=False)
     drf_live_odds = Column('drf_live_odds', Boolean, default=False)
     drf_entries = Column('drf_entries', Boolean, default=False)
+    equibase_entries = Column('equibase_entries', Boolean, default=False)
+    equibase_horse_results = Column('equibase_horse_results', Boolean, default=False)
 
     # Scraping Info
     latest_scrape_time = Column('latest_scrape_time', DateTime)  # UTC
@@ -95,6 +104,15 @@ class Horses(base):
 
     # Identifying Info
     horse_name = Column('horse_name', String)
+    equibase_horse_id = Column('equibase_horse_id', Integer)
+    equibase_horse_type = Column('equibase_horse_type', String)
+    equibase_horse_registry = Column('equibase_horse_registry', String)
+    horse_country = Column('horse_country', String)
+    horse_state = Column('horse_state', String)
+    horse_birthday = Column('horse_birthday', Date)
+    horse_color = Column('horse_color', String)
+    horse_gender = Column('horse_gender', String)
+    horse_type = Column('horse_type', String)
 
 
 class Entries(base):
@@ -117,6 +135,8 @@ class Entries(base):
     place_payoff = Column('place_payoff', Float, default=0)
     show_payoff = Column('show_payoff', Float, default=0)
     finish_position = Column('finish_position', Integer, nullable=True)
+    equibase_speed_figure = Column('equibase_speed_figure', Integer, nullable=True)
+    equibase_history_scrape = Column('equibase_history_scrape', Boolean, default=False)
 
 
 class EntryPools(base):
@@ -189,3 +209,18 @@ class BettingResults(base):
     bet_roi = Column('bet_roi', Float)
     bet_success_count = Column('bet_success_count', Integer)
     update_time = Column('update_time', DateTime)
+
+
+class Workouts(base):
+    __tablename__ = "workouts"
+
+    workout_id = Column('workout_id', Integer, primary_key=True)
+    horse_id = Column('horse_id', Integer, ForeignKey('horses.horse_id'))
+    workout_date = Column('workout_date', Date)
+    track_id = Column('track_id', Integer, ForeignKey('tracks.track_id'))
+    course = Column('course', String)
+    distance = Column('distance', Float)
+    time_seconds = Column('time_seconds', Float)
+    note = Column('note', String)
+    workout_rank = Column('workout_rank', Integer)
+    workout_total = Column('workout_total', Integer)

@@ -1,14 +1,14 @@
 import urllib.request
 import json
 import datetime
-import pprint
 import os
 import argparse
-from pytz import timezone, utc
+import time
+import random
 from db_utils import get_db_session, shutdown_session_and_engine, create_new_instance_from_item, \
     load_item_into_database, find_instance_from_item
-from utils import get_list_of_files
-from models import Races, Tracks, Picks
+from utils import get_list_of_files, get_horse_origin_from_name
+from models import Races, Tracks, Entries, Horses
 import csv
 from drf import create_track_item_from_drf_data, create_race_item_from_drf_data, create_horse_item_from_drf_data, \
     create_jockey_item_from_drf_data, create_trainer_item_from_drf_data, create_entry_item_from_drf_data, \
@@ -17,7 +17,14 @@ from drf import create_track_item_from_drf_data, create_race_item_from_drf_data,
 from brisnet import scrape_spot_plays, create_track_item_from_brisnet_spot_play, \
     create_race_item_from_brisnet_spot_play, create_horse_item_from_brisnet_spot_play, \
     create_entry_item_from_brisnet_spot_play, create_pick_item_from_brisnet_spot_play
+from equibase import get_db_items_from_equibase_whole_card_entry_html, get_equibase_whole_card_entry_url_from_race, \
+    get_equibase_html_with_captcha, get_db_items_from_equibase_horse_html, get_equibase_horse_history_link_from_horse
 
+
+def test_rp():
+    race_url = 'https://www.racingpost.com/results/272/gulfstream-park/2020-01-25/750172'
+    with urllib.request.urlopen(race_url) as url:
+        print(url.read())
 
 def import_track_codes():
 
@@ -27,6 +34,7 @@ def import_track_codes():
     # Connect to the database
     session = get_db_session()
 
+    # USA Track Codes
     with open(file_name) as csv_file:
         csv_reader = csv.reader(csv_file, delimiter=',')
         for row in csv_reader:
@@ -41,6 +49,29 @@ def import_track_codes():
 
             # Track Info
             track = load_item_into_database(track_item, 'track', session)
+
+    # Racing Post Codes
+    with open('rp_track_codes.json') as json_file:
+        data = json.load(json_file)
+
+    for rp_track_item in data['usa']:
+
+        # Process String
+        rp_code, track = rp_track_item.split(' - ')
+        rp_code = int(rp_code.strip())
+        track = track.strip().upper()
+
+        # Create db item
+        track_item = {
+            'name': track,
+            'rp_track_code': rp_code
+        }
+
+        # Track Info
+        track = find_instance_from_item(track_item, 'track', session)
+        if track is not None:
+            track.rp_track_code = rp_code
+            session.commit()
 
     # Close everything out
     shutdown_session_and_engine(session)
@@ -546,6 +577,86 @@ def load_brisnet_spot_play_into_database(data, session):
         pick = load_item_into_database(pick_item, 'pick', session)
 
 
+def load_equibase_entries_into_database(whole_card_data, session):
+
+    # Loop through whole card
+    for data in whole_card_data:
+
+        # Track Info
+        track_item = data['track_item']
+        track = find_instance_from_item(track_item, 'track', session)
+        if track is None:
+            return
+
+        # Race Info (only update if it exists)
+        race_item = data['race_item']
+        race_item['track_id'] = track.track_id
+        race = find_instance_from_item(race_item, 'race', session)
+        if race is None:
+            return
+        else:
+            race = load_item_into_database(race_item, 'race', session)
+
+        # Entry Info
+        for equibase_entry in data['entry_items']:
+
+            # Horse Info
+            horse_item = equibase_entry['horse_item']
+            if horse_item is not None:
+                horse = load_item_into_database(horse_item, 'horse', session)
+
+            # Trainer Info (only update if it exists)
+            trainer_item = equibase_entry['trainer_item']
+            if trainer_item is not None:
+
+                # since first name is an initial, find the instance first and update the first name
+                trainer = find_instance_from_item(trainer_item, 'trainer', session)
+                if trainer is not None:
+                    trainer_item['first_name'] = trainer.first_name
+                    trainer = load_item_into_database(trainer_item, 'trainer', session)
+
+            # Jockey Info (only update if it exists)
+            jockey_item = equibase_entry['jockey_item']
+            if jockey_item is not None:
+
+                # since first name is an initial, find the instance first and update the first name
+                jockey = find_instance_from_item(jockey_item, 'jockey', session)
+                if jockey is not None:
+                    jockey_item['first_name'] = jockey.first_name
+                    jockey = load_item_into_database(jockey_item, 'jockey', session)
+
+
+def get_equibase_entry_links_for_races_without_entries(session):
+
+    # Init link list
+    link_list = []
+
+    # Earliest Entry Date
+    today = datetime.datetime.now().date()
+    min_entries = today + datetime.timedelta(days=-1)
+    max_entries = today + datetime.timedelta(days=2)
+
+    # Query for races
+    races = session.query(Races).filter(
+        Races.equibase_entries == False,
+        Races.card_date <= max_entries,
+        Races.card_date >= min_entries
+    ).all()
+
+    # Create links for races
+    for race in races:
+        link_list.append(get_equibase_whole_card_entry_url_from_race(session, race))
+
+    # Remove duplicates
+    link_list = list(dict.fromkeys(link_list))
+
+    # Return completed list
+    return link_list
+
+def get_equibase_horse_links_for_entry_horses_without_details(session):
+    pass
+
+
 if __name__ == '__main__':
 
     # Argument Parsing
@@ -562,10 +673,10 @@ if __name__ == '__main__':
     modes_run = []
 
     # Check mode
-    if args.mode in ('entries', 'drf', 'all'):
+    if args.mode in ('drf_entries', 'drf', 'all'):
 
         # Mode Tracking
-        modes_run.append('entries')
+        modes_run.append('drf_entries')
 
         # Get tracks
         track_data = get_current_drf_entries_track_list()
@@ -600,10 +711,10 @@ if __name__ == '__main__':
             # Close everything out
             shutdown_session_and_engine(db_session)
 
-    if args.mode in ('odds', 'drf', 'all'):
+    if args.mode in ('drf_odds', 'drf', 'all'):
 
         # Mode Tracking
-        modes_run.append('odds')
+        modes_run.append('drf_odds')
 
         # Get currently running tracks
         track_data_list = list()
@@ -627,10 +738,10 @@ if __name__ == '__main__':
             # Close everything out
             shutdown_session_and_engine(db_session)
 
-    if args.mode in ('missing', 'drf', 'all'):
+    if args.mode in ('drf_missing', 'drf', 'all'):
 
         # Mode Tracking
-        modes_run.append('missing')
+        modes_run.append('drf_missing')
 
         # Connect to the database
         db_session = get_db_session()
@@ -691,6 +802,54 @@ if __name__ == '__main__':
         # Close everything out
         shutdown_session_and_engine(db_session)
 
+    # Check mode
+    if args.mode in ('equibase_entries', 'equibase', 'all'):
+
+        # Mode Tracking
+        modes_run.append('equibase_entries')
+
+        # Connect to the database
+        db_session = get_db_session()
+
+        # Get links
+        equibase_link_list = get_equibase_entry_links_for_races_without_entries(db_session)
+
+        for equibase_link_url in equibase_link_list:
+            print(f'getting {equibase_link_url}')
+            whole_card_html = get_equibase_html_with_captcha(equibase_link_url)
+            db_items = get_db_items_from_equibase_whole_card_entry_html(whole_card_html)
+            load_equibase_entries_into_database(db_items, db_session)
+            sleep_number = random.randrange(60, 120)
+            print(f'Sleeping {sleep_number} seconds')
+            time.sleep(sleep_number)
+
+        # Close everything out
+        shutdown_session_and_engine(db_session)
+
+    # Check mode
+    if args.mode in ('equibase_horse_details', 'equibase', 'all'):
+
+        # Mode Tracking
+        modes_run.append('equibase_horse_details')
+
+        # Connect to the database
+        db_session = get_db_session()
+
+        # Get links
+        equibase_link_list = get_equibase_horse_links_for_entry_horses_without_details(db_session)
+
+        for equibase_link_url in equibase_link_list:
+            print(f'getting {equibase_link_url}')
+            horse_html = get_equibase_html_with_captcha(equibase_link_url)
+            db_items = get_db_items_from_equibase_horse_html(horse_html)
+            load_equibase_entries_into_database(db_items, db_session)
+            sleep_number = random.randrange(60, 120)
+            print(f'Sleeping {sleep_number} seconds')
+            time.sleep(sleep_number)
+
+        # Close everything out
+        shutdown_session_and_engine(db_session)
+
     if args.mode in ('reset_tables'):
 
         # Mode Tracking
@@ -708,21 +867,23 @@ if __name__ == '__main__':
         # Mode Tracking
         modes_run.append('test')
 
-        # Get Data
-        spot_plays = scrape_spot_plays()
+        # Connect to the database
+        db_session = get_db_session()
 
-        # Process it
-        if len(spot_plays) > 0:
+        link_list = get_equibase_entry_links_for_races_without_entries(db_session)
+        print(link_list)
 
-            # Connect to the database
-            db_session = get_db_session()
+        with open('E:\\CodeRepo\\test_equibase\\entry_GP051720USA-EQB.html', 'r') as html_file:
+            html = html_file.read()
 
-            # Iterate through picks
-            for spot_play in spot_plays:
-                load_brisnet_spot_play_into_database(spot_play, db_session)
+        db_items = get_db_items_from_equibase_whole_card_entry_html(html)
+        print(f'The number of races returned are {len(db_items)}')
+        for race_item in db_items:
+            print(f'The number of horses in race {race_item["race_item"]["race_number"]} is {len(race_item["entry_items"])}')
+            print(race_item)
 
-            # Close everything out
-            shutdown_session_and_engine(db_session)
+        # Close everything out
+        shutdown_session_and_engine(db_session)
 
     if len(modes_run) == 0:
 

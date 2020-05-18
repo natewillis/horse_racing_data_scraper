@@ -1,5 +1,6 @@
 from pint import UnitRegistry
 import os
+import re
 
 def convert_drf_distance_description_to_furlongs(distance_string):
 
@@ -36,7 +37,7 @@ def convert_drf_distance_description_to_furlongs(distance_string):
         print(f'Something is wrong with {distance_string}')
         return 0
 
-    return distance.to(ureg.furlong).magnitude
+    return round(distance.to(ureg.furlong).magnitude, 4)
 
 
 def get_list_of_files(dir_name):
@@ -59,3 +60,92 @@ def get_list_of_files(dir_name):
             all_files.append(full_path)
 
     return all_files
+
+
+def get_horse_origin_from_name(horse_name_with_origin):
+
+    # Initialize Return
+    horse_name = horse_name_with_origin.strip().upper()
+    country = 'USA'
+    state = None
+
+    # Perform Matching
+    horse_name_pattern = r'([A-Z\' .-]+)(\(([A-Z]+)\))?'
+    horse_name_search_obj = re.search(horse_name_pattern, horse_name)
+    if horse_name_search_obj:
+        horse_name = horse_name_search_obj.group(1).strip().upper()
+        if horse_name_search_obj.group(3) is not None:
+            origin_text = horse_name_search_obj.group(3).strip().upper()
+            if origin_text in usa_state_dict():
+                country = 'USA'
+                state = origin_text
+            else:
+                country = origin_text
+                state = None
+
+    return horse_name, country, state
+
+
+def usa_state_dict():
+
+    return {
+        "AL": "Alabama",
+        "AK": "Alaska",
+        "AS": "American Samoa",
+        "AZ": "Arizona",
+        "AR": "Arkansas",
+        "CA": "California",
+        "CO": "Colorado",
+        "CT": "Connecticut",
+        "DE": "Delaware",
+        "DC": "District Of Columbia",
+        "FM": "Federated States Of Micronesia",
+        "FL": "Florida",
+        "GA": "Georgia",
+        "GU": "Guam",
+        "HI": "Hawaii",
+        "ID": "Idaho",
+        "IL": "Illinois",
+        "IN": "Indiana",
+        "IA": "Iowa",
+        "KS": "Kansas",
+        "KY": "Kentucky",
+        "LA": "Louisiana",
+        "ME": "Maine",
+        "MH": "Marshall Islands",
+        "MD": "Maryland",
+        "MA": "Massachusetts",
+        "MI": "Michigan",
+        "MN": "Minnesota",
+        "MS": "Mississippi",
+        "MO": "Missouri",
+        "MT": "Montana",
+        "NE": "Nebraska",
+        "NV": "Nevada",
+        "NH": "New Hampshire",
+        "NJ": "New Jersey",
+        "NM": "New Mexico",
+        "NY": "New York",
+        "NC": "North Carolina",
+        "ND": "North Dakota",
+        "MP": "Northern Mariana Islands",
+        "OH": "Ohio",
+        "OK": "Oklahoma",
+        "OR": "Oregon",
+        "PW": "Palau",
+        "PA": "Pennsylvania",
+        "PR": "Puerto Rico",
+        "RI": "Rhode Island",
+        "SC": "South Carolina",
+        "SD": "South Dakota",
+        "TN": "Tennessee",
+        "TX": "Texas",
+        "UT": "Utah",
+        "VT": "Vermont",
+        "VI": "Virgin Islands",
+        "VA": "Virginia",
+        "WA": "Washington",
+        "WV": "West Virginia",
+        "WI": "Wisconsin",
+        "WY": "Wyoming"
+    }

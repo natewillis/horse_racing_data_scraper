@@ -67,17 +67,29 @@ def find_race_instance_from_item(item, session):
 
 
 def find_jockey_instance_from_item(item, session):
-    return session.query(Jockeys).filter(
-        Jockeys.first_name == item['first_name'],
-        Jockeys.last_name == item['last_name']
-    ).first()
+    if len(item['first_name']) == 1:
+        return session.query(Jockeys).filter(
+            Jockeys.first_name.startswith(item['first_name']),
+            Jockeys.last_name == item['last_name']
+        ).first()
+    else:
+        return session.query(Jockeys).filter(
+            Jockeys.first_name == item['first_name'],
+            Jockeys.last_name == item['last_name']
+        ).first()
 
 
 def find_trainer_instance_from_item(item, session):
-    return session.query(Trainers).filter(
-        Trainers.first_name == item['first_name'],
-        Trainers.last_name == item['last_name']
-    ).first()
+    if len(item['first_name']) == 1:
+        return session.query(Trainers).filter(
+            Trainers.first_name.startswith(item['first_name']),
+            Trainers.last_name == item['last_name']
+        ).first()
+    else:
+        return session.query(Trainers).filter(
+            Trainers.first_name == item['first_name'],
+            Trainers.last_name == item['last_name']
+        ).first()
 
 
 def find_horse_instance_from_item(item, session):

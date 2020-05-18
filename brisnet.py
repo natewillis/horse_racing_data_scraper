@@ -6,7 +6,7 @@ import datetime
 import time
 from settings import SELENIUM_DRIVER_PATH
 from sqlalchemy.sql import null
-
+from utils import get_horse_origin_from_name
 
 def create_driver():
 
@@ -107,7 +107,7 @@ def scrape_spot_plays():
                 current_track = cells[0].text.strip().upper()
 
             pick_text = cells[2].text.strip().upper()
-            pick_pattern = r'\((\d+)[a-zA-Z]+\) ([a-zA-Z0-9 ]+), '
+            pick_pattern = r'\((\d+)[a-zA-Z]+\) ([a-zA-Z0-9 \(\)\.\-]+), '
             search_object = re.search(pick_pattern, pick_text)
             if search_object is None:
                 continue
@@ -156,7 +156,15 @@ def create_horse_item_from_brisnet_spot_play(spot_play):
 
     # Create Horse Dict
     item = dict()
-    item['horse_name'] = spot_play['horse_name']
+
+    # Parse name
+    horse_name, horse_country, horse_state = get_horse_origin_from_name(spot_play['horse_name'].strip().upper())
+
+    # Fill in horse data
+    item['horse_name'] = horse_name
+    item['horse_country'] = horse_country
+    if horse_state is not None:
+        item['horse_state'] = horse_state
 
     # Return created track item
     return item

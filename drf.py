@@ -1,6 +1,6 @@
 import datetime
 from pytz import timezone
-from utils import convert_drf_distance_description_to_furlongs
+from utils import convert_drf_distance_description_to_furlongs, get_horse_origin_from_name
 
 
 def create_track_item_from_drf_data(data):
@@ -137,8 +137,14 @@ def create_horse_item_from_drf_data(runner):
     # Create Horse Dict
     item = dict()
 
+    # Parse name
+    horse_name, horse_country, horse_state = get_horse_origin_from_name(runner['horseName'].strip().upper())
+
     # Fill in horse data
-    item['horse_name'] = runner['horseName'].strip().upper()
+    item['horse_name'] = horse_name
+    item['horse_country'] = horse_country
+    if horse_state is not None:
+        item['horse_state'] = horse_state
 
     # Return completed item
     return item
