@@ -545,13 +545,15 @@ def get_db_items_from_equibase_horse_html(html):
             'horse_birthday': datetime.datetime.strptime(horse_profile_search_obj.group(4).strip(), '%B %d, %Y'),
             'horse_name': horse_name,
             'horse_country': horse_country,
-            'horse_state': horse_state
+            'horse_state': horse_state,
+            'equibase_horse_detail_scrape_date': datetime.datetime.utcnow()
         }
     else:
         return_dict['horse_item'] = {
             'horse_name': horse_name,
             'horse_country': horse_country,
-            'horse_state': horse_state
+            'horse_state': horse_state,
+            'equibase_horse_detail_scrape_date': datetime.datetime.utcnow()
         }
 
     # Find Results Table
@@ -568,10 +570,12 @@ def get_db_items_from_equibase_horse_html(html):
     for result_tr in results_table_body.findAll('tr'):
 
         # Get track
-        track_td = result_tr.find('td', {'class': ['track']})
+        track_td = result_tr.select_one('td.track')
         if not track_td:
             continue
         track_href = track_td.find('a')
+        if not track_href:
+            continue
         track_url = track_href['href']
         track_url_pattern = r'/profiles/Results\.cfm\?type=Track&trk=([A-Z]+)&cy=([A-Z]+)'
         track_url_search_obj = re.search(track_url_pattern, track_url)
@@ -632,11 +636,13 @@ def get_db_items_from_equibase_horse_html(html):
             },
             'entry_item': {
                 'finish_position': finish_pos,
-                'equibase_speed_figure': speed_figure
+                'equibase_speed_figure': speed_figure,
+                'equibase_history_scrape': True,
+                'scratch_indicator': 'N'
             }
         })
 
-    # Find Results Table
+    # Find Workout Table
     workouts_table = soup.find('table', {'class': ['phone-collapse workouts']})
     if not workouts_table:
         return return_dict
@@ -739,12 +745,9 @@ def get_db_items_from_equibase_horse_html(html):
             }
         })
 
-    print(return_dict)
     return return_dict
 
 
 def chart_parser():
     pass
     #https://www.equibase.com/static/chart/pdf/CT051520USA.pdf
-
-

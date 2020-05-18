@@ -113,6 +113,7 @@ class Horses(base):
     horse_color = Column('horse_color', String)
     horse_gender = Column('horse_gender', String)
     horse_type = Column('horse_type', String)
+    equibase_horse_detail_scrape_date = Column('equibase_horse_detail_scrape_date', DateTime)
 
 
 class Entries(base):

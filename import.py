@@ -5,6 +5,7 @@ import os
 import argparse
 import time
 import random
+from sqlalchemy import or_
 from db_utils import get_db_session, shutdown_session_and_engine, create_new_instance_from_item, \
     load_item_into_database, find_instance_from_item
 from utils import get_list_of_files, get_horse_origin_from_name
@@ -659,12 +660,17 @@ def get_equibase_horse_links_for_entry_horses_without_details(session):
     # Init link list
     link_list = []
 
+    # Last week
+    min_date = datetime.datetime.utcnow() + datetime.timedelta(days=-7)
+
     # Perform Query
     horses = session.query(Horses).join(Entries).join(Races).filter(
-        Entries.equibase_history_scrape.is_(False),
         Races.equibase_entries.is_(True),
         Horses.equibase_horse_id.isnot(None)
-    ).all()
+    ).filter(or_(
+        Horses.equibase_horse_detail_scrape_date.is_(None),
+        Horses.equibase_horse_detail_scrape_date < min_date
+    )).all()
 
     # Create URLs
     for horse in horses:
@@ -675,6 +681,56 @@ def get_equibase_horse_links_for_entry_horses_without_details(session):
 
     # Return list
     return link_list
+
+
+def load_equibase_horse_data_into_database(data, session):
+
+    # Load Horse Data
+    horse_item = data['horse_item']
+    horse = load_item_into_database(horse_item, 'horse', session)
+    if horse is None:
+        return
+
+    # Cycle through results items
+    for results_item in data['entry_items']:
+
+        # Track Info
+        track_item = results_item['track_item']
+        track = load_item_into_database(track_item, 'track', session)
+        if track is None:
+            continue
+
+        # Race Info
+        race_item = results_item['race_item']
+        race_item['track_id'] = track.track_id
+        race = load_item_into_database(race_item, 'race', session)
+        if race is None:
+            return
+
+        # Load Entry Data
+        entry_item = results_item['entry_item']
+        entry_item['race_id'] = race.race_id
+        entry_item['horse_id'] = horse.horse_id
+        entry = load_item_into_database(entry_item, 'entry', session)
+        if entry is None:
+            continue
+
+    # Cycle through results items
+    for workout_group_item in data['workout_items']:
+
+        # Track Info
+        track_item = workout_group_item['track_item']
+        track = load_item_into_database(track_item, 'track', session)
+        if track is None:
+            continue
+
+        # Workout Info
+        workout_item = workout_group_item['workout_item']
+        workout_item['horse_id'] = horse.horse_id
+        workout_item['track_id'] = track.track_id
+        workout = load_item_into_database(workout_item, 'workout', session)
+        if workout is None:
+            continue
 
 
 if __name__ == '__main__':
@@ -862,8 +918,8 @@ if __name__ == '__main__':
             print(f'getting {equibase_link_url}')
             horse_html = get_equibase_html_with_captcha(equibase_link_url)
             db_items = get_db_items_from_equibase_horse_html(horse_html)
-            load_equibase_entries_into_database(db_items, db_session)
-            sleep_number = random.randrange(60, 120)
+            load_equibase_horse_data_into_database(db_items, db_session)
+            sleep_number = random.randrange(30, 60)
             print(f'Sleeping {sleep_number} seconds')
             time.sleep(sleep_number)
 
@@ -890,8 +946,11 @@ if __name__ == '__main__':
         # Connect to the database
         db_session = get_db_session()
 
-        link_list = get_equibase_horse_links_for_entry_horses_without_details(db_session)
-        print(link_list)
+        print(len(get_equibase_horse_links_for_entry_horses_without_details(db_session)))
+
+        with open('E:\\CodeRepo\\test_equibase\\IRETB.html', 'r') as html_file:
+            db_items = get_db_items_from_equibase_horse_html(html_file)
+            load_equibase_horse_data_into_database(db_items, db_session)
 
         # Close everything out
         shutdown_session_and_engine(db_session)

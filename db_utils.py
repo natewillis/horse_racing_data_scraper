@@ -4,7 +4,7 @@ from sqlalchemy.orm import sessionmaker
 from settings import DATABASE
 from sqlalchemy.ext.declarative import declarative_base
 from models import Races, Horses, Entries, EntryPools, Payoffs, Probables, Tracks, Jockeys, Owners, Trainers, \
-    Picks, BettingResults, base
+    Picks, BettingResults, Workouts, base
 from sqlalchemy import func
 
 
@@ -146,6 +146,14 @@ def find_pick_instance_from_item(item, session):
     ).first()
 
 
+def find_workout_instance_from_item(item, session):
+    return session.query(Workouts).filter(
+        Workouts.horse_id == item['horse_id'],
+        Workouts.workout_date == item['workout_date'],
+        Workouts.track_id == item['track_id'],
+    ).first()
+
+
 def find_instance_from_item(item, item_type, session):
 
     # Instance Finder Dict
@@ -160,7 +168,8 @@ def find_instance_from_item(item, item_type, session):
         'entry_pool': find_entry_pool_instance_from_item,
         'payoff': find_payoff_instance_from_item,
         'probable': find_probable_instance_from_item,
-        'pick': find_pick_instance_from_item
+        'pick': find_pick_instance_from_item,
+        'workout': find_workout_instance_from_item
     }
 
     # Return instance
@@ -181,7 +190,8 @@ def create_new_instance_from_item(item, item_type, session):
         'entry_pool': EntryPools,
         'payoff': Payoffs,
         'probable': Probables,
-        'pick': Picks
+        'pick': Picks,
+        'workout': Workouts
     }
 
     # Create Instance
