@@ -93,7 +93,11 @@ def bypass_distil_get_html(url):
         tab.call_method("Page.addScriptToEvaluateOnNewDocument", source=s)
 
     # Load page
-    tab.call_method("Page.navigate", url=url, _timeout=5)
+    try:
+        tab.call_method("Page.navigate", url=url, _timeout=5)
+    except pychrome.TimeoutException:
+        print('The page timed out!')
+        return ''
 
     # Wait for loading TODO: figure out a more reliable method for this
     tab.wait(10)
