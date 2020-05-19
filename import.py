@@ -20,7 +20,7 @@ from brisnet import scrape_spot_plays, create_track_item_from_brisnet_spot_play,
     create_entry_item_from_brisnet_spot_play, create_pick_item_from_brisnet_spot_play
 from equibase import get_db_items_from_equibase_whole_card_entry_html, get_equibase_whole_card_entry_url_from_race, \
     get_equibase_html_with_captcha, get_db_items_from_equibase_horse_html, get_equibase_horse_history_link_from_horse
-
+from distil import initialize_distil_chrome_browser, shutdown_chrome_browser
 
 def test_rp():
     race_url = 'https://www.racingpost.com/results/272/gulfstream-park/2020-01-25/750172'
@@ -884,6 +884,9 @@ if __name__ == '__main__':
         # Mode Tracking
         modes_run.append('equibase_entries')
 
+        # Initialize browser
+        browser_dict = initialize_distil_chrome_browser()
+
         # Connect to the database
         db_session = get_db_session()
 
@@ -892,7 +895,7 @@ if __name__ == '__main__':
 
         for equibase_link_url in equibase_link_list:
             print(f'getting {equibase_link_url}')
-            whole_card_html = get_equibase_html_with_captcha(equibase_link_url)
+            whole_card_html = get_equibase_html_with_captcha(equibase_link_url, browser_dict)
             db_items = get_db_items_from_equibase_whole_card_entry_html(whole_card_html)
             load_equibase_entries_into_database(db_items, db_session)
             sleep_number = random.randrange(60, 120)
@@ -901,6 +904,7 @@ if __name__ == '__main__':
 
         # Close everything out
         shutdown_session_and_engine(db_session)
+        shutdown_chrome_browser(browser_dict)
 
     # Check mode
     if args.mode in ('equibase_horse_details', 'equibase', 'all'):
@@ -913,10 +917,14 @@ if __name__ == '__main__':
 
         # Get links
         equibase_link_list = get_equibase_horse_links_for_entry_horses_without_details(db_session)
+        print(f'Running for {len(equibase_link_list)} links')
+
+        # Initialize browser
+        browser_dict = initialize_distil_chrome_browser()
 
         for equibase_link_url in equibase_link_list:
             print(f'getting {equibase_link_url}')
-            horse_html = get_equibase_html_with_captcha(equibase_link_url)
+            horse_html = get_equibase_html_with_captcha(equibase_link_url, browser_dict)
             db_items = get_db_items_from_equibase_horse_html(horse_html)
             load_equibase_horse_data_into_database(db_items, db_session)
             sleep_number = random.randrange(30, 60)
@@ -925,6 +933,7 @@ if __name__ == '__main__':
 
         # Close everything out
         shutdown_session_and_engine(db_session)
+        shutdown_chrome_browser(browser_dict)
 
     if args.mode in ('reset_tables'):
 

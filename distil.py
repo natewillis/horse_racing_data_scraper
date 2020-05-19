@@ -56,23 +56,10 @@ def spoofing_scripts():
     ]
 
 
-def bypass_distil_get_html(url):
+def bypass_distil_get_html(url, chrome_browser):
 
-    # Figure out which system we're on
-    windows_chrome_path = 'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe'
-    centos_chrome_path = 'google-chrome'
-    chrome_path = ''
-    if os.path.exists(windows_chrome_path):
-        chrome_path = windows_chrome_path
-    else:
-        chrome_path = centos_chrome_path
-
-    # Create instance of chrome for scraping
-    process = subprocess.Popen([chrome_path, "--headless", "--disable-gpu", "--remote-debugging-port=9222"])
-    time.sleep(5)  # Give it a few seconds to startup
-
-    # Connect to chrome
-    browser = pychrome.Browser(url="http://127.0.0.1:9222")
+    # Grab browser variable out
+    browser = chrome_browser['browser']
 
     # Create a random useragent for browsing
     ua = UserAgent()
@@ -112,8 +99,38 @@ def bypass_distil_get_html(url):
     # Close tab
     browser.close_tab(tab)
 
-    # Close chrome
-    process.terminate()
-
     # Return
     return html
+
+
+def initialize_distil_chrome_browser():
+    # Figure out which system we're on
+    windows_chrome_path = 'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe'
+    centos_chrome_path = 'google-chrome'
+    chrome_path = ''
+    if os.path.exists(windows_chrome_path):
+        chrome_path = windows_chrome_path
+    else:
+        chrome_path = centos_chrome_path
+
+    # Create instance of chrome for scraping
+    process = subprocess.Popen([chrome_path, "--headless", "--disable-gpu", "--remote-debugging-port=9222"])
+    time.sleep(5)  # Give it a few seconds to startup
+
+    # Connect to chrome
+    browser = pychrome.Browser(url="http://127.0.0.1:9222")
+
+    # Assemble into dict
+    chrome_browser = {
+        'process': process,
+        'browser': browser
+    }
+
+    # Return it
+    return chrome_browser
+
+
+def shutdown_chrome_browser(chrome_browser):
+
+    # Close chrome
+    chrome_browser['process'].terminate()

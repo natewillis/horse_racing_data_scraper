@@ -485,7 +485,7 @@ def get_db_items_from_equibase_whole_card_entry_html(html):
     return return_list
 
 
-def get_equibase_html_with_captcha(url):
+def get_equibase_html_with_captcha(url, chrome_browser):
 
     # Define parameters
     max_tries = 3
@@ -499,7 +499,7 @@ def get_equibase_html_with_captcha(url):
             time.sleep(120)
 
         # Get html
-        html = bypass_distil_get_html(url)
+        html = bypass_distil_get_html(url, chrome_browser)
 
         # Process with soup
         soup = BeautifulSoup(html, 'html.parser')
