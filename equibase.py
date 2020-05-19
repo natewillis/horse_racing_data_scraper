@@ -497,6 +497,7 @@ def get_equibase_html_with_captcha(url, chrome_browser):
         # Sleep a long while
         if current_tries > 0:
             time.sleep(120)
+        current_tries += 1
 
         # Get html
         html = bypass_distil_get_html(url, chrome_browser)
@@ -506,6 +507,7 @@ def get_equibase_html_with_captcha(url, chrome_browser):
 
         # Check for captcha
         if soup.find(id='distilCaptchaForm'):
+            print(f'found a goddam captcha {current_tries} time(s)')
             captcha_exists = True
         else:
             captcha_exists = False
