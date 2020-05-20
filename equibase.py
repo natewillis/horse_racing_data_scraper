@@ -1,10 +1,7 @@
-from distil import bypass_distil_get_html
 from models import Tracks
 from bs4 import BeautifulSoup
 import datetime
 import re
-from distil import bypass_distil_get_html
-import time
 from utils import get_horse_origin_from_name
 
 def get_equibase_horse_history_link_from_params(equibase_horse_id, equibase_horse_registry, equibase_horse_type):
@@ -483,39 +480,6 @@ def get_db_items_from_equibase_whole_card_entry_html(html):
         return_list.append(return_dict)
 
     return return_list
-
-
-def get_equibase_html_with_captcha(url, chrome_browser):
-
-    # Define parameters
-    max_tries = 3
-    current_tries = 0
-    captcha_exists = True
-
-    while current_tries <= max_tries and captcha_exists:
-
-        # Sleep a long while
-        if current_tries > 0:
-            time.sleep(120)
-        current_tries += 1
-
-        # Get html
-        html = bypass_distil_get_html(url, chrome_browser)
-
-        # Process with soup
-        soup = BeautifulSoup(html, 'html.parser')
-
-        # Check for captcha
-        if soup.find(id='distilCaptchaForm'):
-            print(f'found a goddam captcha {current_tries} time(s)')
-            captcha_exists = True
-        else:
-            captcha_exists = False
-
-    if captcha_exists:
-        raise ValueError('Equibase gave your undetectable browser a captcha.')
-    else:
-        return html
 
 
 def get_db_items_from_equibase_horse_html(html):
