@@ -895,7 +895,7 @@ if __name__ == '__main__':
 
         for equibase_link_url in equibase_link_list:
             print(f'getting {equibase_link_url}')
-            whole_card_html = get_html_from_page_with_captcha(browser, equibase_link_url)
+            whole_card_html = get_html_from_page_with_captcha(browser, equibase_link_url, 'div.race-nav.center')
             db_items = get_db_items_from_equibase_whole_card_entry_html(whole_card_html)
             load_equibase_entries_into_database(db_items, db_session)
             sleep_number = random.randrange(60, 120)
@@ -924,7 +924,7 @@ if __name__ == '__main__':
 
         for equibase_link_url in equibase_link_list:
             print(f'getting {equibase_link_url}')
-            horse_html = get_html_from_page_with_captcha(browser, equibase_link_url)
+            horse_html = get_html_from_page_with_captcha(browser, equibase_link_url, 'td.track')
             db_items = get_db_items_from_equibase_horse_html(horse_html)
             load_equibase_horse_data_into_database(db_items, db_session)
             sleep_number = random.randrange(30, 60)

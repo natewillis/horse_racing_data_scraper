@@ -103,9 +103,9 @@ async def async_shutdown_stealth_browser(browser):
     await browser.close()
 
 
-async def async_html_scrape_with_captcha(browser, url):
+async def async_html_scrape_with_captcha(browser, url, loaded_selector):
     # Set captcha loop variables
-    stealth_flag = True
+    stealth_flag = False
     captcha_flag = True
     max_iterations = 3
     current_iterations = 0
@@ -217,11 +217,12 @@ async def async_html_scrape_with_captcha(browser, url):
             await bg.screenshot({'path': just_solved_captcha_path})
 
             # See what happens here
-            time.sleep(10)
             try:
-                await page.waitForSelector('img')
+                await page.waitForSelector(loaded_selector, {'timeout': 60000})
+                captcha_flag = False
+                break
             except TimeoutError:
-                print('crap')
+                print('the loaded selector timed out probably due to captcha failure')
 
             # Test for failure again i guess
             if await page.querySelector('div.geetest_slider_button') is not None:
@@ -231,9 +232,11 @@ async def async_html_scrape_with_captcha(browser, url):
                 await page.close()
                 continue
             else:
-                print('Captcha success!')
-                captcha_flag = False
-                break
+                print('Maybe the website is super slow right now?')
+                captcha_flag = True
+                time.sleep(15)
+                await page.close()
+                continue
 
     if captcha_flag:
 
@@ -263,9 +266,9 @@ def shutdown_stealth_browser(browser):
     return loop.run_until_complete(async_shutdown_stealth_browser(browser))
 
 
-def get_html_from_page_with_captcha(browser, url):
+def get_html_from_page_with_captcha(browser, url, loaded_selector):
     loop = asyncio.get_event_loop()
-    return loop.run_until_complete(async_html_scrape_with_captcha(browser, url))
+    return loop.run_until_complete(async_html_scrape_with_captcha(browser, url, loaded_selector))
 
 
 if __name__ == '__main__':
