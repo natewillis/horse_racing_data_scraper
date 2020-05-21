@@ -1,6 +1,6 @@
 import asyncio
 from pyppeteer import launch
-from pyppeteer.errors import TimeoutError
+from pyppeteer.errors import TimeoutError, PageError
 from pyppeteer_stealth import stealth
 import time
 import os
@@ -9,6 +9,7 @@ from settings import CAPTCHA_STORAGE_PATH
 import cv2
 import numpy as np
 import random
+
 
 def solve_geetest_captcha(image_path, final_image_path):
 
@@ -92,14 +93,53 @@ def solve_geetest_captcha(image_path, final_image_path):
 
 async def async_initialize_stealth_browser():
     # Launch Browser
-    browser = await launch()
+    browser = await launch({'args': ['--proxy-server=socks5://127.0.0.1:9050']})
+
+    # Get incognito context
+    context = await browser.createIncognitoBrowserContext()
+
+    # Open a new page in the browser
+    page = await context.newPage()
+
+    # Stealth the browser window
+    await stealth(page)
+
+    # Check for tor
+    try:
+        await page.goto('https://check.torproject.org/')
+    except PageError:
+        print('Tor browser configuration failed')
+        raise Exception("Tor couldn't reach the test site to confirm it was running")
+
+    # Get tor text
+    tor_h1 = await page.querySelector('h1')
+
+    if tor_h1 is not None:
+        tor_h1_text = await page.evaluate('(element) => element.textContent', tor_h1)
+        print(f'The tor text is {tor_h1_text.strip()}')
+        if 'Congratulations' in tor_h1_text:
+            print('Tor is configured!')
+        else:
+            print('Tor is not configured :(')
+            raise Exception("Tor isnt configured for your browser!")
+    else:
+        print('wtf tor')
+        html = await page.evaluate('document.body.innerHTML', force_expr=True)
+        print(html)
+        raise Exception("Tor isnt configured for your browser! Also its weird!")
+
+    # Close Page
+    await page.close()
 
     # Return browser
-    return browser
+    return context
 
 
-async def async_shutdown_stealth_browser(browser):
+async def async_shutdown_stealth_browser(context):
+
     # Shutdown the browser
+    browser = context.browser
+    await context.close()
     await browser.close()
 
 
@@ -131,6 +171,10 @@ async def async_html_scrape_with_captcha(browser, url, loaded_selector):
             print('now theyre pissed')
             await page.close()
             return ''
+        except PageError:
+            print('something went wrong with the connection, lets try again')
+            await page.close()
+            continue
 
         # Test for distil rejection
         try:
@@ -145,7 +189,7 @@ async def async_html_scrape_with_captcha(browser, url, loaded_selector):
 
         # Test for captcha
         try:
-            await page.waitForSelector('div.geetest_holder', {'timeout': 5000})
+            await page.waitForSelector('#distilCaptchaForm', {'timeout': 10000})
             print('Theres a captcha!')
             captcha_flag = True
         except TimeoutError:
@@ -160,7 +204,13 @@ async def async_html_scrape_with_captcha(browser, url, loaded_selector):
 
             # Click to verify
             time.sleep(5)
-            verify_button = await page.querySelector('div.geetest_holder')
+            try:
+                verify_button = await page.waitForSelector('div.geetest_holder', {'timeout': 30000})
+            except TimeoutError:
+                print('The captcha changed or laoding is broken or something')
+                await page.close()
+                return ''
+
             await verify_button.click({'button': 'left', 'clickCount': 1, 'delay': 10})
 
             # Wait for captcha to load
@@ -207,7 +257,7 @@ async def async_html_scrape_with_captcha(browser, url, loaded_selector):
                 time.sleep(0.01)
             time.sleep(random.randrange(1, 5))
             await page.mouse.up()
-            time.sleep(0.1)
+            time.sleep(0.3)
 
             # Take a snapshot of what happens
             just_solved_captcha_path = os.path.join(
@@ -273,8 +323,8 @@ def get_html_from_page_with_captcha(browser, url, loaded_selector):
 
 if __name__ == '__main__':
     browser = initialize_stealth_browser()
-    tb_html = get_html_from_page_with_captcha(browser, 'https://www.equibase.com/static/entry/TAM052020USA-EQB.html')
-    wr_html = get_html_from_page_with_captcha(browser, 'https://www.equibase.com/static/entry/WRD052020USA-EQB.html')
+    tb_html = get_html_from_page_with_captcha(browser, 'https://www.equibase.com/static/entry/TAM052020USA-EQB.html', 'div.race-nav.center')
     print(tb_html)
+    wr_html = get_html_from_page_with_captcha(browser, 'https://www.equibase.com/static/entry/WRD052020USA-EQB.html', 'div.race-nav.center')
     print(wr_html)
     shutdown_stealth_browser(browser)
