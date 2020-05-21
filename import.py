@@ -100,7 +100,8 @@ def load_drf_odds_data_into_database(data, scrape_time, session):
                 probable_item = create_probable_item_from_drf_data(probable_dict, race, scrape_time)
 
                 # We're creating a new instance instead of loading the item due to database constraints
-                probable = create_new_instance_from_item(probable_item, 'probable', session)
+                if probable_item is not None:
+                    probable = create_new_instance_from_item(probable_item, 'probable', session)
 
     # Parse Runner Data
     for runner in data['runners']:
@@ -639,7 +640,8 @@ def get_equibase_entry_links_for_races_without_entries(session):
 
     # Query for races
     races = session.query(Races).filter(
-        Races.equibase_entries == False,
+        Races.equibase_entries.is_(False),
+        Races.drf_entries.is_(True),
         Races.card_date <= max_entries,
         Races.card_date >= min_entries
     ).all()
