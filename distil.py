@@ -5,7 +5,7 @@ from pyppeteer_stealth import stealth
 import time
 import os
 import datetime
-from settings import CAPTCHA_STORAGE_PATH
+from settings import CAPTCHA_STORAGE_PATH, TOR_CONTROL_PASSWORD
 import cv2
 import numpy as np
 import random
@@ -16,7 +16,7 @@ from stem.control import Controller
 def reconnect_tor():
 
     with Controller.from_port(port=9051) as controller:
-        controller.authenticate(password='16:3DAA9EACF5FAFFD16006FB12651FEEB19429A21BEA586FD54EE4748415')
+        controller.authenticate(password=TOR_CONTROL_PASSWORD)
         print('authentication success')
         controller.signal(Signal.NEWNYM)
         print('new tor connection processed')
