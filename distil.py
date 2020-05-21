@@ -9,6 +9,17 @@ from settings import CAPTCHA_STORAGE_PATH
 import cv2
 import numpy as np
 import random
+from stem import Signal
+from stem.control import Controller
+
+
+def reconnect_tor():
+
+    with Controller.from_port(port=9051) as controller:
+        controller.authenticate(password='16:3DAA9EACF5FAFFD16006FB12651FEEB19429A21BEA586FD54EE4748415')
+        print('authentication success')
+        controller.signal(Signal.NEWNYM)
+        print('new tor connection processed')
 
 
 def solve_geetest_captcha(image_path, final_image_path):
@@ -92,6 +103,10 @@ def solve_geetest_captcha(image_path, final_image_path):
 
 
 async def async_initialize_stealth_browser():
+
+    # Set flag
+    try_again_flag = False
+
     # Launch Browser
     browser = await launch({'args': ['--proxy-server=socks5://127.0.0.1:9050']})
 
@@ -109,7 +124,16 @@ async def async_initialize_stealth_browser():
         await page.goto('https://check.torproject.org/')
     except PageError:
         print('Tor browser configuration failed')
-        raise Exception("Tor couldn't reach the test site to confirm it was running")
+        try_again_flag = True
+
+    if try_again_flag:
+        print('attempting to reconnect tor')
+        reconnect_tor()
+        try:
+            page.goto('https://check.torproject.org/')
+        except PageError:
+            print('Tor browser configuration failed AGAIN')
+            raise Exception("Tor couldn't reach the test site to confirm it was running")
 
     # Get tor text
     tor_h1 = await page.querySelector('h1')
@@ -173,6 +197,7 @@ async def async_html_scrape_with_captcha(browser, url, loaded_selector):
             return ''
         except PageError:
             print('something went wrong with the connection, lets try again')
+            reconnect_tor()
             await page.close()
             continue
 
@@ -323,6 +348,7 @@ def get_html_from_page_with_captcha(browser, url, loaded_selector):
 
 if __name__ == '__main__':
     browser = initialize_stealth_browser()
+    reconnect_tor()
     tb_html = get_html_from_page_with_captcha(browser, 'https://www.equibase.com/static/entry/TAM052020USA-EQB.html', 'div.race-nav.center')
     print(tb_html)
     wr_html = get_html_from_page_with_captcha(browser, 'https://www.equibase.com/static/entry/WRD052020USA-EQB.html', 'div.race-nav.center')
