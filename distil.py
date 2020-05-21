@@ -204,9 +204,10 @@ async def async_html_scrape_with_captcha(browser, url, loaded_selector):
         try:
             await page.goto(url)
         except TimeoutError:
-            print('now theyre pissed')
+            print('page timed out entirely, trying to recconect tor')
+            reconnect_tor()
             await page.close()
-            return ''
+            continue
         except PageError:
             print('something went wrong with the connection, lets try again')
             reconnect_tor()
@@ -218,7 +219,7 @@ async def async_html_scrape_with_captcha(browser, url, loaded_selector):
             await page.waitForSelector('#distilIdentificationBlock', {'timeout': 5000})
             print('Distil discovered our stealth! Unhide!')
             stealth_flag = False
-            time.sleep(20)
+            time.sleep(5)
             await page.close()
             continue
         except TimeoutError:
