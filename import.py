@@ -898,7 +898,7 @@ if __name__ == '__main__':
             whole_card_html = get_html_from_page_with_captcha(browser, equibase_link_url, 'div.race-nav.center')
             db_items = get_db_items_from_equibase_whole_card_entry_html(whole_card_html)
             load_equibase_entries_into_database(db_items, db_session)
-            sleep_number = random.randrange(60, 120)
+            sleep_number = random.randrange(20, 40)
             print(f'Sleeping {sleep_number} seconds')
             time.sleep(sleep_number)
 
@@ -927,7 +927,7 @@ if __name__ == '__main__':
             horse_html = get_html_from_page_with_captcha(browser, equibase_link_url, 'td.track')
             db_items = get_db_items_from_equibase_horse_html(horse_html)
             load_equibase_horse_data_into_database(db_items, db_session)
-            sleep_number = random.randrange(30, 60)
+            sleep_number = random.randrange(15, 30)
             print(f'Sleeping {sleep_number} seconds')
             time.sleep(sleep_number)
 
