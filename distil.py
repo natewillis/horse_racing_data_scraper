@@ -43,7 +43,8 @@ def solve_geetest_captcha(image_path, final_image_path):
 
     # Get Bounding Rectangle
     if len(contours) == 0:
-        return random.randrange(20,80)
+        print('this captcha cant be solved for some reason')
+        return random.randrange(20, 80)
     areas = [cv2.contourArea(c) for c in contours]
     max_index = np.argmax(areas)
     cnt = contours[max_index]
