@@ -145,7 +145,7 @@ async def async_shutdown_stealth_browser(context):
 
 async def async_html_scrape_with_captcha(browser, url, loaded_selector):
     # Set captcha loop variables
-    stealth_flag = False
+    stealth_flag = True
     captcha_flag = True
     max_iterations = 3
     current_iterations = 0
