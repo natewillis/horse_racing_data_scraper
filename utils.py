@@ -2,6 +2,7 @@ from pint import UnitRegistry
 import os
 import re
 
+
 def convert_drf_distance_description_to_furlongs(distance_string):
 
     # Load unit conversion
@@ -9,6 +10,10 @@ def convert_drf_distance_description_to_furlongs(distance_string):
 
     # Distance Calcs
     # Error check distance values
+    if distance_string is None:
+        return 0
+    if distance_string == '':
+        return 0
     if distance_string == 'NaN':
         return 0
 
