@@ -77,6 +77,11 @@ def get_db_items_from_equibase_entry_html(html):
         'entry_items': []
     }
 
+    # Check for blank html
+    if html == '':
+        print('Blank html means the scrape must have failed')
+        return return_dict
+
     # Parse html
     soup = BeautifulSoup(html, 'html.parser')
 
@@ -265,6 +270,11 @@ def get_db_items_from_equibase_whole_card_entry_html(html):
 
     # Initialize horse items
     return_list = []
+
+    # Check for blank html
+    if html == '':
+        print('Blank html means the scrape must have failed')
+        return return_list
 
     # Parse html
     soup = BeautifulSoup(html, 'html.parser')
@@ -484,12 +494,18 @@ def get_db_items_from_equibase_whole_card_entry_html(html):
 
 def get_db_items_from_equibase_horse_html(html):
 
+
     # Initialize horse items
     return_dict = {
         'horse_item': None,
         'entry_items': [],
         'workout_items': []
     }
+
+    # Check for blank html
+    if html == '':
+        print('Blank html means the scrape must have failed')
+        return return_dict
 
     # Parse html
     soup = BeautifulSoup(html, 'html.parser')

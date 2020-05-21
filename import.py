@@ -5,7 +5,7 @@ import os
 import argparse
 import time
 import random
-from sqlalchemy import or_
+from sqlalchemy import or_, and_
 from db_utils import get_db_session, shutdown_session_and_engine, create_new_instance_from_item, \
     load_item_into_database, find_instance_from_item
 from utils import get_list_of_files, get_horse_origin_from_name
@@ -669,7 +669,14 @@ def get_equibase_horse_links_for_entry_horses_without_details(session):
         Horses.equibase_horse_id.isnot(None)
     ).filter(or_(
         Horses.equibase_horse_detail_scrape_date.is_(None),
-        Horses.equibase_horse_detail_scrape_date < min_date
+        and_(
+            Races.post_time > datetime.datetime.utcnow(),
+            Horses.equibase_horse_detail_scrape_date < min_date,
+        ),
+        and_(
+            Horses.equibase_horse_detail_scrape_date < Races.post_time,
+            Races.post_time < datetime.datetime.utcnow()
+        )
     )).all()
 
     # Create URLs

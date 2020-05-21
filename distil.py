@@ -106,6 +106,8 @@ async def async_initialize_stealth_browser():
 
     # Set flag
     try_again_flag = False
+    tor_connection_attempts = 0
+    max_tor_connection_attempts = 3
 
     # Launch Browser
     browser = await launch({'args': ['--proxy-server=socks5://127.0.0.1:9050']})
@@ -126,14 +128,24 @@ async def async_initialize_stealth_browser():
         print('Tor browser configuration failed')
         try_again_flag = True
 
-    if try_again_flag:
-        print('attempting to reconnect tor')
+    while try_again_flag and tor_connection_attempts < max_tor_connection_attempts:
+
+        # Increment connection attempts
+        tor_connection_attempts += 1
+        print(f'attempting to reconnect tor ({tor_connection_attempts})')
         reconnect_tor()
         try:
             page.goto('https://check.torproject.org/')
+            try_again_flag = False
         except PageError:
             print('Tor browser configuration failed AGAIN')
-            raise Exception("Tor couldn't reach the test site to confirm it was running")
+            try_again_flag = True
+        except TimeoutError:
+            print('Tor browser configuration failed AGAIN')
+            try_again_flag = True
+
+    if try_again_flag:
+        raise Exception("Tor couldn't reach the test site to confirm it was running")
 
     # Get tor text
     tor_h1 = await page.querySelector('h1')
@@ -232,7 +244,8 @@ async def async_html_scrape_with_captcha(browser, url, loaded_selector):
             try:
                 verify_button = await page.waitForSelector('div.geetest_holder', {'timeout': 30000})
             except TimeoutError:
-                print('The captcha changed or laoding is broken or something')
+                print('The captcha changed or laoding is broken or something. Reconnecting tor and exiting.')
+                reconnect_tor()
                 await page.close()
                 return ''
 
