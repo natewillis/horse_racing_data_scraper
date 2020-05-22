@@ -512,6 +512,9 @@ def get_db_items_from_equibase_horse_html(html):
 
     # Find horse name
     horse_name_h2 = soup.find('h2', {'class': ['clear horse-name-header']})
+    if horse_name_h2 is None:
+        print('something went wrong with the horse info scrape')
+        return return_dict
     horse_name, horse_country, horse_state = get_horse_origin_from_name(horse_name_h2.text.strip().upper())
 
     # Find Horse Profile
