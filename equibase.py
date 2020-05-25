@@ -12,7 +12,14 @@ def get_equibase_horse_history_link_from_params(equibase_horse_id, equibase_hors
 
 def get_equibase_horse_history_link_from_horse(horse):
 
-    return get_equibase_horse_history_link_from_params(horse.equibase_horse_id, horse.equibase_horse_registry, horse.equibase_horse_type)
+    # Fix Registry
+    if horse.equibase_horse_registry:
+        if horse.equibase_horse_registry == 'MX':
+            registry = 'TB'
+        else:
+            registry = horse.equibase_horse_registry
+
+    return get_equibase_horse_history_link_from_params(horse.equibase_horse_id, registry, horse.equibase_horse_type)
 
 
 def get_equibase_result_url_from_params(code, card_date, country, race_number):

@@ -669,7 +669,6 @@ def get_equibase_horse_links_for_entry_horses_without_details(session):
     horses = session.query(Horses).join(Entries).join(Races).filter(
         Races.equibase_entries.is_(True),
         Horses.equibase_horse_id.isnot(None),
-        Horses.equibase_horse_registry.isnot('MX')
     ).filter(or_(
         Horses.equibase_horse_detail_scrape_date.is_(None),
         and_(
