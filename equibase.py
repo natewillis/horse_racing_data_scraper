@@ -4,15 +4,15 @@ import datetime
 import re
 from utils import get_horse_origin_from_name
 
-def get_equibase_horse_history_link_from_params(equibase_horse_id, equibase_horse_registry, equibase_horse_type):
+def get_equibase_horse_history_link_from_params(equibase_horse_id, equibase_horse_registry):
 
     return f'http://www.equibase.com/profiles/Results.cfm?type=Horse&' \
-           f'refno={equibase_horse_id}&registry={equibase_horse_registry}&rbt={equibase_horse_type}'
+           f'refno={equibase_horse_id}&registry={equibase_horse_registry}'
 
 
 def get_equibase_horse_history_link_from_horse(horse):
 
-    return get_equibase_horse_history_link_from_params(horse.equibase_horse_id, registry, horse.equibase_horse_type)
+    return get_equibase_horse_history_link_from_params(horse.equibase_horse_id, horse.equibase_horse_registry)
 
 
 def get_equibase_result_url_from_params(code, card_date, country, race_number):

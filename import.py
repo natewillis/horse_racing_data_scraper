@@ -772,16 +772,17 @@ def fix_horse_registry(session):
                 old_registry = horse.equibase_horse_registry
                 old_type = horse.equibase_horse_type
                 horse.equibase_horse_registry = old_type
-                horse.equibase_horse_registry = old_registry
+                horse.equibase_horse_type = old_registry
                 print(f'fixing {horse.horse_id}')
-                session.commit()
             elif horse.equibase_horse_type in types and horse.equibase_horse_registry in registries:
-                print(f'{horse.horse_id} is fine')
+                pass
             else:
                 print(f'{horse.horse_id} is weird with type:'
                       f'{horse.equibase_horse_type} and reg:{horse.equibase_horse_registry}')
         else:
-            print(f'{horse.horse_id} is missing some stuff')
+            pass
+
+    session.commit()
 
 if __name__ == '__main__':
 
