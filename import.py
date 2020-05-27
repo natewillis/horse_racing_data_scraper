@@ -22,10 +22,12 @@ from equibase import get_db_items_from_equibase_whole_card_entry_html, get_equib
     get_db_items_from_equibase_horse_html, get_equibase_horse_history_link_from_horse
 from distil import initialize_stealth_browser, shutdown_stealth_browser, get_html_from_page_with_captcha
 
+
 def test_rp():
     race_url = 'https://www.racingpost.com/results/272/gulfstream-park/2020-01-25/750172'
     with urllib.request.urlopen(race_url) as url:
         print(url.read())
+
 
 def import_track_codes():
 
@@ -754,6 +756,33 @@ def load_equibase_horse_data_into_database(data, session):
             continue
 
 
+def fix_horse_registry(session):
+
+    # Variables
+    registries = ['Q', 'G', 'T', 'K']
+    types = ['MX', 'TB', 'QH']
+
+    # Perform query
+    horses = session.query(Horses).all()
+
+    # Iterate all
+    for horse in horses:
+        if horse.equibase_horse_type and horse.equibase_horse_registry:
+            if horse.equibase_horse_type in registries and horse.equibase_horse_registry in types:
+                old_registry = horse.equibase_horse_registry
+                old_type = horse.equibase_horse_type
+                horse.equibase_horse_registry = old_type
+                horse.equibase_horse_registry = old_registry
+                print(f'fixing {horse.horse_id}')
+                session.commit()
+            elif horse.equibase_horse_type in types and horse.equibase_horse_registry in registries:
+                print(f'{horse.horse_id} is fine')
+            else:
+                print(f'{horse.horse_id} is weird with type:'
+                      f'{horse.equibase_horse_type} and reg:{horse.equibase_horse_registry}')
+        else:
+            print(f'{horse.horse_id} is missing some stuff')
+
 if __name__ == '__main__':
 
     # Argument Parsing
@@ -967,6 +996,20 @@ if __name__ == '__main__':
 
         # Import Tracks
         import_track_codes()
+
+    if args.mode in ('fix_equibase_horse_registry'):
+
+        # Mode Tracking
+        modes_run.append('fix_equibase_horse_registry')
+
+        # Get database
+        db_session = get_db_session()
+
+        # Fix things
+        fix_horse_registry(db_session)
+
+        # Shut it down
+        shutdown_session_and_engine(db_session)
 
     if args.mode in ('test'):
 

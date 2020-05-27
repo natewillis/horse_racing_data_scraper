@@ -12,13 +12,6 @@ def get_equibase_horse_history_link_from_params(equibase_horse_id, equibase_hors
 
 def get_equibase_horse_history_link_from_horse(horse):
 
-    # Fix Registry
-    if horse.equibase_horse_registry:
-        if horse.equibase_horse_registry == 'MX':
-            registry = 'TB'
-        else:
-            registry = horse.equibase_horse_registry
-
     return get_equibase_horse_history_link_from_params(horse.equibase_horse_id, registry, horse.equibase_horse_type)
 
 
@@ -180,8 +173,8 @@ def get_db_items_from_equibase_entry_html(html):
             horse_link_match_obj = re.search(horse_link_pattern, horse_link)
             if horse_link_match_obj:
                 equibase_id = int(horse_link_match_obj.group(1))
-                equibase_type = horse_link_match_obj.group(2).strip().upper()
-                equibase_registry = horse_link_match_obj.group(3).strip().upper()
+                equibase_type = horse_link_match_obj.group(3).strip().upper()
+                equibase_registry = horse_link_match_obj.group(2).strip().upper()
 
                 # store horse object to write
                 entry_item['horse_item'] = {
@@ -402,8 +395,8 @@ def get_db_items_from_equibase_whole_card_entry_html(html):
                 horse_link_match_obj = re.search(horse_link_pattern, horse_link)
                 if horse_link_match_obj:
                     equibase_id = int(horse_link_match_obj.group(1))
-                    equibase_type = horse_link_match_obj.group(2).strip().upper()
-                    equibase_registry = horse_link_match_obj.group(3).strip().upper()
+                    equibase_type = horse_link_match_obj.group(3).strip().upper()
+                    equibase_registry = horse_link_match_obj.group(2).strip().upper()
 
                     # store horse object to write
                     entry_item['horse_item'] = {
@@ -416,6 +409,7 @@ def get_db_items_from_equibase_whole_card_entry_html(html):
                     }
 
                 else:
+                    print('no horse link')
                     continue
 
             if not scratch_flag:
