@@ -68,204 +68,6 @@ def get_equibase_whole_card_entry_url_from_race(session, race):
     return get_equibase_whole_card_entry_url_from_params(track.code, race.card_date, track.country)
 
 
-def get_db_items_from_equibase_entry_html(html):
-
-    # Initialize horse items
-    return_dict = {
-        'track_item': None,
-        'race_item': None,
-        'entry_items': []
-    }
-
-    # Check for blank html
-    if html == '':
-        print('Blank html means the scrape must have failed')
-        return return_dict
-
-    # Parse html
-    soup = BeautifulSoup(html, 'html.parser')
-
-    # Find Track Header
-    title_h2 = soup.find('h2', {'class': ['track-info', 'center']})
-    if not title_h2:
-        return return_dict
-
-    # Extract track code
-    track_name_a = title_h2.find('a', {'class': ['track-name']})
-    if track_name_a:
-        track_url = track_name_a['href']
-    else:
-        return return_dict
-
-    # Regex to get track code
-    track_url_pattern = r'/profiles/Results\.cfm\?type=Track&trk=([A-Z]+)&cy=([A-Z]+)'
-    track_url_search_obj = re.search(track_url_pattern, track_url)
-    if track_url_search_obj:
-        track_code = track_url_search_obj.group(1)
-    else:
-        return return_dict
-
-    # Create track item
-    return_dict['track_item'] = {
-        'code': track_code
-    }
-
-    # Extract Race Date
-    race_date_div = title_h2.find('div', {'class': ['race-date']})
-    if race_date_div:
-        card_date = datetime.datetime.strptime(race_date_div.text.strip(), '%B %d, %Y').date()
-    else:
-        return return_dict
-
-    # Extract Race Number
-    race_number = -1
-    race_number_spans = soup.find_all('span', {'class': ['whitetxt', 'allcaps']})
-    for race_number_span in race_number_spans:
-        race_number_pattern = r'Race (\d+) -'
-        race_number_search_obj = re.search(race_number_pattern, race_number_span.text)
-        if race_number_search_obj:
-            race_number = int(race_number_search_obj.group(1).strip())
-    if race_number <= 0:
-        return return_dict
-
-    # Create race item
-    return_dict['race_item'] = {
-        'card_date': card_date,
-        'race_number': race_number,
-        'track_id': 0,
-        'equibase_entries': True
-    }
-
-    # Entry Table
-    entry_table = soup.find('table', {'class': ['fullwidth', 'table-hover', 'text-center']})
-    if not entry_table:
-        return return_dict
-    entry_table_body = entry_table.find('tbody')
-    if not entry_table_body:
-        return return_dict
-
-    # Iterate through the entries
-    for entry_tr in entry_table_body.findAll('tr'):
-
-        # Init Entry Dictionary
-        entry_item = {
-            'horse_item': None,
-            'jockey_item': None,
-            'owner_item': None
-        }
-
-        # Break up cells
-        entry_tds = entry_tr.findAll('td')
-        if len(entry_tds) < 9:
-            continue
-
-        # Get horse details
-        horse_name_td = entry_tds[2]
-        horse_name_a = horse_name_td.find('a')
-        if horse_name_a:
-
-            # Horse name
-            horse_name, horse_country, horse_state = get_horse_origin_from_name(horse_name_a.text.strip().upper())
-
-            # Get equibase identifiers
-            horse_link = horse_name_a.get('href').replace('®', '&reg')
-            horse_link_pattern = r'type=Horse&refno=(\d+)&registry=([A-Za-z0-9]+)&rbt=([A-Za-z0-9]+)'
-            horse_link_match_obj = re.search(horse_link_pattern, horse_link)
-            if horse_link_match_obj:
-                equibase_id = int(horse_link_match_obj.group(1))
-                equibase_type = horse_link_match_obj.group(3).strip().upper()
-                equibase_registry = horse_link_match_obj.group(2).strip().upper()
-
-                # store horse object to write
-                entry_item['horse_item'] = {
-                    'horse_name': horse_name,
-                    'horse_country': horse_country,
-                    'horse_state': horse_state,
-                    'equibase_horse_id': equibase_id,
-                    'equibase_horse_type': equibase_type,
-                    'equibase_horse_registry': equibase_registry
-                }
-
-            else:
-                continue
-
-        # Get jockey details
-        jockey_td = entry_tds[7]
-        jockey_name_a = jockey_td.find('a')
-        if jockey_name_a:
-            # Jockey name
-            jockey_name = jockey_name_a.text.strip().upper()
-            jockey_name_pattern = r'([A-Z]) ([A-Z ]) ([A-Z\'\-]+)(, [A-Z0-9\.\-]+)?'
-            jockey_name_search_obj = re.search(jockey_name_pattern, jockey_name)
-            if jockey_name_search_obj:
-                jockey_first_initial = jockey_name_search_obj.group(1)
-                jockey_last_name = jockey_name_search_obj.group(3)
-                if jockey_name_search_obj.group(4) is not None:
-                    jockey_last_name += jockey_name_search_obj.group(4)
-            else:
-                continue
-
-            # Get equibase identifiers
-            jockey_link = jockey_name_a.get('href').replace('®', '&reg')
-            jockey_link_pattern = r'type=People&searchType=J&eID=(\d+)&rbt=([A-Za-z0-9]+)'
-            jockey_link_match_obj = re.search(jockey_link_pattern, jockey_link)
-            if jockey_link_match_obj:
-                equibase_id = int(jockey_link_match_obj.group(1))
-                equibase_type = jockey_link_match_obj.group(2).strip().upper()
-
-                # store horse object to write
-                entry_item['jockey_item'] = {
-                    'first_name': jockey_first_initial,
-                    'last_name': jockey_last_name,
-                    'equibase_jockey_type': equibase_type,
-                    'equibase_jockey_id': equibase_id
-                }
-
-            else:
-                continue
-
-        # Get trainer details
-        trainer_td = entry_tds[9]
-        trainer_name_a = trainer_td.find('a')
-        if trainer_name_a:
-
-            # trainer name
-            trainer_name = trainer_name_a.text.strip().upper()
-            trainer_name_pattern = r'([A-Z]) ([A-Z ]) ([A-Z\'\-]+)(, [A-Z0-9\.\-]+)?'
-            trainer_name_search_obj = re.search(trainer_name_pattern, trainer_name)
-            if trainer_name_search_obj:
-                trainer_first_initial = trainer_name_search_obj.group(1)
-                trainer_last_name = trainer_name_search_obj.group(3)
-                if trainer_name_search_obj.group(4) is not None:
-                    trainer_last_name += trainer_name_search_obj.group(4)
-            else:
-                continue
-
-            # Get equibase identifiers
-            trainer_link = trainer_name_a.get('href').replace('®', '&reg')
-            trainer_link_pattern = r'type=People&searchType=T&eID=(\d+)&rbt=([A-Za-z0-9]+)'
-            trainer_link_match_obj = re.search(trainer_link_pattern, trainer_link)
-            if trainer_link_match_obj:
-                equibase_id = int(trainer_link_match_obj.group(1))
-                equibase_type = trainer_link_match_obj.group(2).strip().upper()
-
-                # store horse object to write
-                entry_item['trainer_item'] = {
-                    'first_name': trainer_first_initial,
-                    'last_name': trainer_last_name,
-                    'equibase_trainer_type': equibase_type,
-                    'equibase_trainer_id': equibase_id
-                }
-
-        else:
-            continue
-
-        # Append to horse items
-        return_dict['entry_items'].append(entry_item)
-
-    return return_dict
-
-
 def get_db_items_from_equibase_whole_card_entry_html(html):
 
     # Initialize horse items
@@ -734,6 +536,42 @@ def get_db_items_from_equibase_horse_html(html):
         })
 
     return return_dict
+
+
+def equibase_entries_link_getter(html):
+
+    # Link List
+    link_list = []
+
+    # Check for blank html
+    if html == '':
+        print('Blank html means the scrape must have failed')
+        return link_list
+
+    # Parse html
+    soup = BeautifulSoup(html, 'html.parser')
+
+    # Find links
+    link_as = soup.findAll('a', href= re.compile(r'/static/entry/.*[A-Z]{2}\d{6}'))
+
+    # process links
+    for link_a in link_as:
+
+        # Get URL
+        href = link_a['href']
+
+        # Check for calendar links
+        if 'calendar' in href:
+            continue
+
+        # Remove race card index if necessary
+        href = href.replace('RaceCardIndex', '')
+
+        # Append to link list
+        link_list.append(f'http://www.equibase.com/{href}')
+
+    # Return link list
+    return link_list
 
 
 def chart_parser():

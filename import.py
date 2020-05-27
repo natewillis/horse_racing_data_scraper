@@ -19,7 +19,7 @@ from brisnet import scrape_spot_plays, create_track_item_from_brisnet_spot_play,
     create_race_item_from_brisnet_spot_play, create_horse_item_from_brisnet_spot_play, \
     create_entry_item_from_brisnet_spot_play, create_pick_item_from_brisnet_spot_play
 from equibase import get_db_items_from_equibase_whole_card_entry_html, get_equibase_whole_card_entry_url_from_race, \
-    get_db_items_from_equibase_horse_html, get_equibase_horse_history_link_from_horse
+    get_db_items_from_equibase_horse_html, get_equibase_horse_history_link_from_horse, equibase_entries_link_getter
 from distil import initialize_stealth_browser, shutdown_stealth_browser, get_html_from_page_with_captcha
 
 
@@ -941,9 +941,16 @@ if __name__ == '__main__':
         # Connect to the database
         db_session = get_db_session()
 
-        # Get links
-        equibase_link_list = get_equibase_entry_links_for_races_without_entries(db_session)
+        # Get HTML for entries page
+        html = get_html_from_page_with_captcha(
+            browser,
+            'http://www.equibase.com/static/entry/index.html',
+            'a.entrSpacing')
 
+        # Get Links
+        equibase_link_list = equibase_entries_link_getter(html)
+
+        # Process links
         for equibase_link_url in equibase_link_list:
             print(f'getting {equibase_link_url}')
             whole_card_html = get_html_from_page_with_captcha(browser, equibase_link_url, 'div.race-nav.center')
@@ -1018,16 +1025,18 @@ if __name__ == '__main__':
         modes_run.append('test')
 
         # Connect to the database
-        db_session = get_db_session()
+        #db_session = get_db_session()
 
-        print(len(get_equibase_horse_links_for_entry_horses_without_details(db_session)))
+        # Get HTML
+        html = get_html_from_page_with_captcha('http://www.equibase.com/static/entry/index.html', 'a.entrSpacing')
 
-        with open('E:\\CodeRepo\\test_equibase\\IRETB.html', 'r') as html_file:
-            db_items = get_db_items_from_equibase_horse_html(html_file)
-            load_equibase_horse_data_into_database(db_items, db_session)
+        # Get Links
+        link_list = equibase_entries_link_getter(html)
+
+
 
         # Close everything out
-        shutdown_session_and_engine(db_session)
+        #shutdown_session_and_engine(db_session)
 
     if len(modes_run) == 0:
 
