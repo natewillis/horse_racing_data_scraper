@@ -70,16 +70,26 @@ def scrape_spot_plays():
         if entry_data_p is None:
             continue
         entry_data_spans = entry_data_p.findAll('span')
-        entry_date = datetime.datetime.strptime(entry_data_spans[0].text.strip(), '%b %d, %Y').date()
+
+        try:
+            entry_date = datetime.datetime.strptime(entry_data_spans[0].text.strip(), '%b %d, %Y').date()
+        except ValueError:
+            entry_date = datetime.datetime.strptime(entry_data_spans[0].text.strip(), '%B %d, %Y').date()
 
         # Find Pick Date
         spot_play_pattern = r'SPOT PLAYS ([a-zA-Z]+) ([0-9]+)'
         search_object = re.search(spot_play_pattern, title_text)
         if search_object:
-            pick_date = datetime.datetime.strptime(
-                f'{search_object.group(1)} {search_object.group(2)}, {entry_date.year}',
-                '%b %d, %Y'
-            ).date()
+            try:
+                pick_date = datetime.datetime.strptime(
+                    f'{search_object.group(1)} {search_object.group(2)}, {entry_date.year}',
+                    '%b %d, %Y'
+                ).date()
+            except ValueError:
+                pick_date = datetime.datetime.strptime(
+                    f'{search_object.group(1)} {search_object.group(2)}, {entry_date.year}',
+                    '%B %d, %Y'
+                ).date()
         else:
             break
         if pick_date < entry_date:
