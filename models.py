@@ -225,3 +225,13 @@ class Workouts(base):
     note = Column('note', String)
     workout_rank = Column('workout_rank', Integer)
     workout_total = Column('workout_total', Integer)
+
+
+class AnalysisProbabilities(base):
+    __tablename__ = "analysis_probabilities"
+
+    probability_id = Column('probability_id', Integer, primary_key=True)
+    entry_id = Column('entry_id', ForeignKey('entries.entry_id'))
+    analysis_type = Column('analysis_type', String)
+    finish_place = Column('finish_place', Integer)
+    probability_percentage = Column('probability_percentage', Float)
