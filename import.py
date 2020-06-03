@@ -772,6 +772,7 @@ def fix_horse_registry(session):
 
     session.commit()
 
+
 if __name__ == '__main__':
 
     # Argument Parsing
