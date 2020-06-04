@@ -666,6 +666,7 @@ def get_equibase_horse_links_for_entry_horses_without_details(session):
 
     # Last week
     min_date = datetime.datetime.utcnow() + datetime.timedelta(days=-7)
+    min_date_only = datetime.date(min_date.year, min_date.month, min_date.day)
 
     # Perform Query
     horses = session.query(Horses).join(Entries).join(Races).filter(
@@ -680,6 +681,10 @@ def get_equibase_horse_links_for_entry_horses_without_details(session):
         and_(
             Horses.equibase_horse_detail_scrape_date < Races.post_time,
             Races.post_time < (datetime.datetime.utcnow() + datetime.timedelta(days=-1))
+        ),
+        and_(
+            Entries.equibase_speed_figure == 999,
+            Races.card_date > min_date_only
         )
     )).all()
 

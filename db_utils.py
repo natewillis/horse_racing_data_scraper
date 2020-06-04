@@ -1,6 +1,7 @@
 from sqlalchemy import create_engine
 from sqlalchemy.engine.url import URL
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.sql import null
 from settings import DATABASE
 from sqlalchemy.ext.declarative import declarative_base
 from models import Races, Horses, Entries, EntryPools, Payoffs, Probables, Tracks, Jockeys, Owners, Trainers, \
@@ -215,6 +216,11 @@ def create_new_instance_from_item(item, item_type, session):
         'betting_result': BettingResults
     }
 
+    # Fix any nulls
+    for key, value in item.items():
+        if value is None:
+            item[key] = null()
+
     # Create Instance
     instance = model_dict[item_type](**item)
 
@@ -253,6 +259,8 @@ def load_item_into_database(item, item_type, session):
                     if instance.off_time is not None:
                         if value > instance.off_time:
                             continue
+            if value is None:
+                value = null()
 
             # Set the attributes
             setattr(instance, key, value)
