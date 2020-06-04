@@ -680,7 +680,7 @@ def get_equibase_horse_links_for_entry_horses_without_details(session):
         ),
         and_(
             Horses.equibase_horse_detail_scrape_date < Races.post_time,
-            Races.post_time < (datetime.datetime.utcnow() + datetime.timedelta(days=-1))
+            Races.post_time < (datetime.datetime.utcnow() + datetime.timedelta(days=-2))
         ),
         and_(
             Entries.equibase_speed_figure == 999,
