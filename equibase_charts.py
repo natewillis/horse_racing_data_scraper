@@ -603,7 +603,7 @@ def convert_equibase_result_chart_pdf_to_item(pdf_filename):
                                 'text': call['text'],
                                 'distance': point_furlongs,
                                 'position': int(pp_entry[call['text']]['main_text']),
-                                'lb': 0 if int(pp_entry[call['text']]['main_text']) == 1 else lb_text_to_float(pp_entry[call['text']]['super_text']),
+                                'lengths_back': 0 if int(pp_entry[call['text']]['main_text']) == 1 else lb_text_to_float(pp_entry[call['text']]['super_text']),
                             })
 
 

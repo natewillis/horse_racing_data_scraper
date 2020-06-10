@@ -749,6 +749,72 @@ def load_equibase_horse_data_into_database(data, session):
             continue
 
 
+def load_equibase_chart_data_into_database(data, session):
+
+    for data_item in data:
+
+        # Track Info
+        track_item = data_item['track_item']
+        track = find_instance_from_item(track_item, 'track', session)
+        if track is None:
+            return
+
+        # Race Info
+        race_item = data_item['race_item']
+        race_item['track_id'] = track.track_id
+        race = load_item_into_database(race_item, 'race', session)
+        if race is None:
+            return
+
+
+
+
+
+
+        # Load Horse Data
+        horse_item = data['horse_item']
+        horse = load_item_into_database(horse_item, 'horse', session)
+        if horse is None:
+            return
+
+        # Cycle through results items
+        for results_item in data['entry_items']:
+
+
+
+            # Race Info
+            race_item = results_item['race_item']
+            race_item['track_id'] = track.track_id
+            race = load_item_into_database(race_item, 'race', session)
+            if race is None:
+                return
+
+            # Load Entry Data
+            entry_item = results_item['entry_item']
+            entry_item['race_id'] = race.race_id
+            entry_item['horse_id'] = horse.horse_id
+            entry = load_item_into_database(entry_item, 'entry', session)
+            if entry is None:
+                continue
+
+        # Cycle through results items
+        for workout_group_item in data['workout_items']:
+
+            # Track Info
+            track_item = workout_group_item['track_item']
+            track = load_item_into_database(track_item, 'track', session)
+            if track is None:
+                continue
+
+            # Workout Info
+            workout_item = workout_group_item['workout_item']
+            workout_item['horse_id'] = horse.horse_id
+            workout_item['track_id'] = track.track_id
+            workout = load_item_into_database(workout_item, 'workout', session)
+            if workout is None:
+                continue
+
+
 def fix_horse_registry(session):
 
     # Variables

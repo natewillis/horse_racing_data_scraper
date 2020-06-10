@@ -235,3 +235,26 @@ class AnalysisProbabilities(base):
     analysis_type = Column('analysis_type', String)
     finish_place = Column('finish_place', Integer)
     probability_percentage = Column('probability_percentage', Float)
+
+
+class FractionalTimes(base):
+    __tablename__ = "fractional_times"
+
+    fractional_id = Column('fractional_id', Integer, primary_key=True)
+    race_id = Column('race_id', Integer, ForeignKey('races.race_id'))
+    point = Column('point', Integer)
+    text = Column('text', String)
+    distance = Column('distance', Float)
+    time = Column('time', Float)
+
+
+class PointsOfCall(base):
+    __tablename__ = "points_of_call"
+
+    point_of_call_id = Column('fractional_id', Integer, primary_key=True)
+    entry_id = Column('entry_id', Integer, ForeignKey('entries.entry_id'))
+    point = Column('point', Integer)
+    text = Column('text', String)
+    distance = Column('distance', Float)
+    position = Column('time', Integer)
+    lengths_back = Column('lengths_back', Float)
