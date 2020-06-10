@@ -1,6 +1,150 @@
 from pint import UnitRegistry
 import os
 import re
+from word2number import w2n
+import fractions
+
+def lb_text_to_float(lb_text):
+
+    # Process
+    lb_text = lb_text.upper().strip()
+
+    if lb_text == 'NOSE':
+        return 0.05,
+    elif lb_text == 'HEAD':
+        return 0.2
+    elif lb_text == 'NECK':
+        return 0.3
+    else:
+        return float(sum(fractions.Fraction(term) for term in lb_text.split()))
+
+
+def convert_mixed_fraction_to_num(num_string):
+
+    # Uppercase everything to make life easier
+    num_string = num_string.upper()
+
+    # Fraction dictionary
+    denominator_dictionary = {
+        'HALF': 2,
+        'THIRD': 3,
+        'FOURTH': 4,
+        'FIFTH': 5,
+        'SIXTH': 6,
+        'SEVENTH': 7,
+        'EIGHTH': 8,
+        'NINTH': 9,
+        'TENTH': 10,
+        'ELEVENTH': 11,
+        'TWELFTH': 12,
+        'THIRTEENTH': 13,
+        'FOURTEENTH': 14,
+        'FIFTEENTH': 15,
+        'SIXTEENTH': 16
+    }
+
+    # Check for fraction
+    if 'AND' in num_string:
+
+        # Split the string into parts
+        split_number = num_string.split(' AND ')
+        whole_number_string = split_number[0]
+        fraction_number_string = split_number[1]
+
+        # Whole number conversion
+        whole_number_int = w2n.word_to_num(whole_number_string)
+
+        #Fraction conversion
+        split_fraction = fraction_number_string.split(' ')
+        if len(split_fraction) == 2:
+
+            # numerator
+            numerator = w2n.word_to_num(split_fraction[0].strip())
+
+            # denominator
+            denominator_string = split_fraction[1].strip()
+            if denominator_string[-1] == 'S':
+                denominator_string = denominator_string[:-1]
+
+            if denominator_string in denominator_dictionary:
+                denominator = denominator_dictionary[denominator_string]
+                fraction_part = round(numerator/denominator,  4)
+            else:
+                print(f'{denominator_string} was not recognized!')
+                fraction_part = 0
+
+            fraction_number = whole_number_int + fraction_part
+
+        else:
+
+            print(f'ERROR! {fraction_number_string} doesnt parse out of {num_string}')
+            fraction_number = 0
+
+    else:
+
+        fraction_number = w2n.word_to_num(num_string)
+
+    return fraction_number
+
+
+def convert_equibase_chart_distance_string_to_furlongs(distance_string):
+
+    # Check how many units
+    different_units = ['MILE', 'FURLONG', 'YARD']
+    num_units = 0
+    for unit in different_units:
+        if unit in distance_string:
+            num_units += 1
+
+    # Check for case with mixed units
+    if num_units == 1:
+
+        # Split the units off of the distance string
+        units = distance_string.split(' ')[-1]
+        distance_string = distance_string[:-len(units)].strip()
+        units = units.strip()
+
+        # Convert string to number
+        distance_numeric = convert_mixed_fraction_to_num(distance_string)
+        final_distance_string = f'{distance_numeric} {units.lower()}'
+
+    elif num_units == 2:
+
+        # split the two different unit strings out
+        final_distance_strings = []
+        split_different_distance_strings = distance_string.split(' AND ')
+        if len(split_different_distance_strings) != 2:
+            split_different_distance_strings = distance_string.split(' ')
+            if len(split_different_distance_strings) == 4:
+                split_different_distance_strings = [
+                    split_different_distance_strings[0] + ' ' + split_different_distance_strings[1],
+                    split_different_distance_strings[2] + ' ' + split_different_distance_strings[3]
+                ]
+            else:
+                print(f'cant figure {distance_string} out')
+                split_different_distance_strings = []
+
+        for different_distance_string in split_different_distance_strings:
+            # Split the units off of the distance string
+            units = different_distance_string.split(' ')[-1]
+            current_different_distance_string = different_distance_string[:-len(units)].strip()
+            units = units.strip()
+
+            # Convert string to number
+            current_distance_numeric = convert_mixed_fraction_to_num(current_different_distance_string)
+            final_distance_strings.append(f'{current_distance_numeric} {units}')
+
+        # Join the strings together
+        final_distance_string = ' '.join(final_distance_strings)
+
+    else:
+        final_distance_string = ''
+
+    # Convert distance to furlongs
+    final_distance = convert_drf_distance_description_to_furlongs(final_distance_string)
+
+    # Return final distance
+    return final_distance
 
 
 def convert_drf_distance_description_to_furlongs(distance_string):

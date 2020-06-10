@@ -32,6 +32,7 @@ def get_equibase_result_url_from_race(session, race):
     # Call function to assemble url
     return get_equibase_result_url_from_params(track.code, race.card_date, track.country, race.race_number)
 
+
 def get_equibase_entry_url_from_params(code, card_date, country, race_number):
 
     # Format date object

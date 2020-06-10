@@ -32,7 +32,7 @@ def test_rp():
 def import_track_codes():
 
     # Set file name
-    file_name = 'track_codes.csv'
+    file_name = 'resources/track_codes.csv'
 
     # Connect to the database
     session = get_db_session()
@@ -54,7 +54,7 @@ def import_track_codes():
             track = load_item_into_database(track_item, 'track', session)
 
     # Racing Post Codes
-    with open('rp_track_codes.json') as json_file:
+    with open('resources/rp_track_codes.json') as json_file:
         data = json.load(json_file)
 
     for rp_track_item in data['usa']:
