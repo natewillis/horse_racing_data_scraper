@@ -6,6 +6,24 @@ from utils import convert_equibase_chart_distance_string_to_furlongs, get_horse_
 import math
 import json
 from pprint import pprint
+from models import Tracks
+
+
+def get_equibase_embedded_chart_link_from_params(track_code, card_date, track_country):
+
+    # Format date object
+    eb_date = card_date.strftime('%m/%d/%Y')
+
+    return f'https://www.equibase.com/premium/chartEmb.cfm?track={track_code}&raceDate={eb_date}&cy={track_country}'
+
+
+def get_equibase_embedded_chart_link_from_race(session, race):
+
+    # Get associated track
+    track = session.query(Tracks).filter(Tracks.track_id == race.track_id).first()
+
+    # Call function to assemble url
+    return get_equibase_embedded_chart_link_from_params(track.code, race.card_date, track.country)
 
 
 def whole_line_selector_string(y0, y1):
@@ -203,10 +221,9 @@ def get_race_type_breed_from_race_page(page, y0):
         race_type_class_words = race_type.split(' ')
         race_class_words = []
         for word in race_type_class_words:
-            if word.isupper():
+            if word in ['MAIDEN', 'CLAIMING', '1', '2', '3', 'SPECIAL', 'WEIGHT', 'ALLOWANCE', 'STAKES', 'GRADE', 'OPTIONAL', 'STARTER']:
                 race_class_words.append(word)
         race_class = ' '.join(race_class_words)
-
 
         breed = race_type_line_text.split(' - ')[-1].strip()
 
@@ -263,18 +280,33 @@ def get_purse_from_race_page(page):
 def get_claiming_price_from_race_page(page):
 
     # Get the whole line
-    claiming_price_whole_line = get_whole_horizontal_line_text_from_contains(page, 'Claiming Price: $')
+    claiming_price_whole_line = get_whole_horizontal_line_text_from_contains(page, 'Price: $')
 
     if claiming_price_whole_line != '':
 
-        claiming_price_string = claiming_price_whole_line.split('Claiming Price: $')[1].replace(',', '')
-        claiming_price_value = float(claiming_price_string)
+        # Process claiming price
+        claiming_price_string = claiming_price_whole_line.split('Price: $')[1].replace(',', '').replace('$', '')
 
-        return claiming_price_value
+        # Check for min/max
+        if ' - ' in claiming_price_string:
+            claiming_price_split = claiming_price_string.split(' - ')
+            if not claiming_price_split[0].strip().isnumeric() or not claiming_price_split[1].strip().isnumeric():
+                return None, None
+            else:
+                max_claiming_price = float(claiming_price_split[0].strip())
+                min_claiming_price = float(claiming_price_split[1].strip())
+        else:
+            if not claiming_price_string.strip().isnumeric():
+                return None, None
+            else:
+                max_claiming_price = float(claiming_price_string.strip())
+                min_claiming_price = max_claiming_price
+
+        return min_claiming_price, max_claiming_price
 
     else:
 
-        return None
+        return None, None
 
 
 def get_track_condition_weather_from_race_page(page):
@@ -395,7 +427,7 @@ def get_starter_data_from_race_page(page):
     return starter_data
 
 
-def get_pp_data_from_race_page(page):
+def get_pp_data_from_race_page(page, next_page):
 
     # Init variables
     pp_data = []
@@ -403,6 +435,16 @@ def get_pp_data_from_race_page(page):
     # starter parsing - find header
     pp_header = page('LTTextLineHorizontal:contains("Horse Name")').eq(1)
     trainer_label = page('LTTextLineHorizontal:contains("Trainers")')
+    next_page_flag = False
+    if len(trainer_label) == 0:
+        if next_page is not None:
+            trainer_label = next_page('LTTextLineHorizontal:contains("Trainers")')
+            next_page_flag = True
+            if len(trainer_label) == 0:
+                return pp_data
+        else:
+            return pp_data
+
 
     # grab y coordinates of the header row we found
     current_y0 = float(pp_header.attr('y0')) + float(pp_header.attr('height')) / 2 - 1
@@ -422,22 +464,43 @@ def get_pp_data_from_race_page(page):
     current_y1 = current_y0 + 2
 
     # figure out where to stop
-    min_y0 = float(trainer_label.attr('y1')) + 13
+    if next_page_flag:
+        min_y0 = 0
+    else:
+        min_y0 = float(trainer_label.attr('y1')) + 13
 
+    # Setup loop
+    current_page = page
     while current_y0 > min_y0:
         # get starter line pdf items
         selector_string = whole_line_selector_string(current_y0, current_y1)
-        starter_line_items = page(selector_string)
+        starter_line_items = current_page(selector_string)
 
-        # parse items to dictionary
-        pp_dict, line_stats = parse_line_items_based_on_header_list(starter_line_items, header_column_list)
+        # Check if theres a blank line
+        if len(starter_line_items) > 0:
 
-        # Append to return dict
-        pp_data.append(pp_dict)
+            # parse items to dictionary
+            pp_dict, line_stats = parse_line_items_based_on_header_list(starter_line_items, header_column_list)
+
+            # Append to return dict
+            pp_data.append(pp_dict)
 
         # Increment current y0 to the next value
+        last_y0 = current_y0
         current_y0 = line_stats['min_y0'] - 10.306 + line_stats['max_height'] / 2 - 1
+
+        # Fix bottom of page issues
+        if current_y0 >= last_y0:
+            current_y0 = last_y0 - 10.306 + line_stats['max_height'] / 2 - 1
+
+        # y1 is based off of y2
         current_y1 = current_y0 + 2
+
+        if next_page_flag and current_y0 < 0:
+            min_y0 = float(trainer_label.attr('y1')) + 13
+            current_page = next_page
+            current_y0 = 760
+            current_y1 = 764
 
     return pp_data
 
@@ -484,6 +547,9 @@ def convert_equibase_result_chart_pdf_to_item(pdf_filename):
     pdf = pdfquery.PDFQuery(pdf_filename)
     pdf.load()
 
+    # stats
+    number_pages = pdf.doc.catalog['Pages'].resolve()['Count']
+
     # Loop through races
     for race_string_object in pdf.pq('LTTextLineHorizontal:contains(" - Race ")'):
 
@@ -495,6 +561,11 @@ def convert_equibase_result_chart_pdf_to_item(pdf_filename):
         # Race Page
         race_page_number = next(race_string_object.iterancestors('LTPage')).layout.pageid
         race_page = pdf.pq(f'LTPage[pageid="{race_page_number}"]')
+        if race_page_number < number_pages:
+            next_race_page = pdf.pq(f'LTPage[pageid="{race_page_number + 1}"]')
+        else:
+            next_race_page = None
+
 
         # Get race type
         race_type, race_class, breed = get_race_type_breed_from_race_page(race_page, float(race_string_object.layout.y0) - 9)
@@ -507,7 +578,7 @@ def convert_equibase_result_chart_pdf_to_item(pdf_filename):
         purse = get_purse_from_race_page(race_page)
 
         # Get Claiming Price
-        claiming_price = get_claiming_price_from_race_page(race_page)
+        min_claiming_price, max_claiming_price = get_claiming_price_from_race_page(race_page)
 
         # Get Track Condition and weather
         track_condition, weather = get_track_condition_weather_from_race_page(race_page)
@@ -519,12 +590,14 @@ def convert_equibase_result_chart_pdf_to_item(pdf_filename):
         starter_data = get_starter_data_from_race_page(race_page)
 
         # past performance data
-        pp_data = get_pp_data_from_race_page(race_page)
+        pp_data = get_pp_data_from_race_page(race_page, next_race_page)
+
+        #TODO: Trainer data
 
         # Initialize single return dict for race
         data_item = {
             'track_item': {
-                'name': race_string_dict['track_name']
+                'equibase_chart_name': race_string_dict['track_name']
             },
             'race_item': {
                 'race_number': race_string_dict['race_number'],
@@ -535,8 +608,8 @@ def convert_equibase_result_chart_pdf_to_item(pdf_filename):
                 'race_type': race_type,
                 'breed': breed,
                 'track_condition': track_condition,
-                'min_claim_price': claiming_price,
-                'max_claim_price': claiming_price,
+                'min_claim_price': min_claiming_price,
+                'max_claim_price': max_claiming_price,
                 'race_class': race_class,
                 'weather': weather,
                 'equibase_chart_scrape': True,
@@ -547,9 +620,8 @@ def convert_equibase_result_chart_pdf_to_item(pdf_filename):
 
         # parse starters
         for starter_item in starter_data:
-
             horse_name, horse_country, horse_state, jockey_first_name, jockey_last_name = \
-                parse_horse_name_string_jockey_from_starter_text(starter_item['Horse Name (Jockey)']['main_text'])
+                parse_horse_name_string_jockey_from_starter_text(starter_item['Horse Name (Jockey)']['whole_text'])
 
             pp_entry = next(
                 (x for x in pp_data if x['Pgm'] == starter_item['Pgm']),
@@ -558,7 +630,6 @@ def convert_equibase_result_chart_pdf_to_item(pdf_filename):
 
             horse_item = {
                 'horse_name': horse_name,
-                'horse_country': horse_country
             }
 
             jockey_item = {
@@ -566,14 +637,38 @@ def convert_equibase_result_chart_pdf_to_item(pdf_filename):
                 'last_name': jockey_last_name
             }
 
+            # weight parsing
+            if starter_item['Wgt']['main_text'] == '' and starter_item['Wgt']['super_text'] == '':
+                weight = None
+            elif starter_item['Wgt']['main_text'] != '' and starter_item['Wgt']['super_text'] == '':
+                weight_string = starter_item['Wgt']['main_text'].replace('½', '.5').strip()
+                if weight_string.isnumeric():
+                    weight = float(weight_string)
+                else:
+                    weight = None
+            elif starter_item['Wgt']['main_text'] == '' and starter_item['Wgt']['super_text'] != '':
+                weight_string = starter_item['Wgt']['super_text'].replace('½', '.5').strip()
+                if weight_string.isnumeric():
+                    weight = float(weight_string)
+                else:
+                    weight = None
+            elif starter_item['Wgt']['main_text'] != '' and starter_item['Wgt']['super_text'] != '':
+                weight_string = starter_item['Wgt']['main_text'].strip() + '.' + starter_item['Wgt']['super_text'].strip()
+                if weight_string.isnumeric():
+                    weight = float(weight_string)
+                else:
+                    weight = None
+            else:
+                weight = None
+
             entry_item = {
                 'scratch_indicator': 'N',
-                'post_position': starter_item['PP']['main_text'],
-                'program_number': starter_item['Pgm']['main_text'],
-                'finish_position': starter_item['Fin']['main_text'],
-                'weight': starter_item['Wgt']['main_text'],
-                'comments': starter_item['Comments']['main_text'],
-                'medication_equipment': starter_item['M/E']['main_text'],
+                'post_position': starter_item['PP']['whole_text'],
+                'program_number': starter_item['Pgm']['whole_text'],
+                'finish_position': None if starter_item['Fin']['main_text'] == '---' else starter_item['Fin']['main_text'],
+                'weight': weight,
+                'comments': starter_item['Comments']['whole_text'],
+                'medication_equipment': starter_item['M/E']['whole_text'],
             }
 
             point_of_call_list = []
@@ -619,11 +714,10 @@ def convert_equibase_result_chart_pdf_to_item(pdf_filename):
 
         data_list.append(data_item)
 
-    pprint(data_list)
     # Return finished product
     return data_list
 
 
 if __name__ == '__main__':
 
-    data_list = convert_equibase_result_chart_pdf_to_item('E:\\CodeRepo\\drf_chart_scraper\\SAR072818USA.pdf')
+    data_list = convert_equibase_result_chart_pdf_to_item('E:\\CodeRepo\\drf_chart_scraper\\TAM060320USA.pdf')

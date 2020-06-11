@@ -21,7 +21,7 @@ from brisnet import scrape_spot_plays, create_track_item_from_brisnet_spot_play,
 from equibase import get_db_items_from_equibase_whole_card_entry_html, get_equibase_whole_card_entry_url_from_race, \
     get_db_items_from_equibase_horse_html, get_equibase_horse_history_link_from_horse, equibase_entries_link_getter
 from distil import initialize_stealth_browser, shutdown_stealth_browser, get_html_from_page_with_captcha
-
+from equibase_charts import convert_equibase_result_chart_pdf_to_item, get_equibase_embedded_chart_link_from_race
 
 def test_rp():
     race_url = 'https://www.racingpost.com/results/272/gulfstream-park/2020-01-25/750172'
@@ -75,6 +75,24 @@ def import_track_codes():
         if track is not None:
             track.rp_track_code = rp_code
             session.commit()
+
+    # Chart Parser Codes
+    with open('resources/track-codes-chart-parser.csv') as csv_file:
+        csv_reader = csv.reader(csv_file, delimiter=';')
+        for row in csv_reader:
+            # Parse CSV into Variables
+            track_item = {
+                'code': row[0].strip().upper(),
+                'equibase_chart_name': row[2].strip().upper(),
+                'country': row[1].strip().upper()
+            }
+
+            # Track Info
+            track = load_item_into_database(track_item, 'track', session)
+
+            if track.time_zone is None:
+                track.time_zone = 'US/Eastern'
+                session.commit()
 
     # Close everything out
     shutdown_session_and_engine(session)
@@ -767,52 +785,37 @@ def load_equibase_chart_data_into_database(data, session):
             return
 
 
+        # Fractional Times
+        for fractional_item in data_item['fractional_data']:
+            fractional_item['race_id'] = race.race_id
+            fractional_instance = load_item_into_database(fractional_item, 'fractional_time', session)
 
+        # Entries
+        for entry_data in data_item['entry_data']:
 
-
-
-        # Load Horse Data
-        horse_item = data['horse_item']
-        horse = load_item_into_database(horse_item, 'horse', session)
-        if horse is None:
-            return
-
-        # Cycle through results items
-        for results_item in data['entry_items']:
-
-
-
-            # Race Info
-            race_item = results_item['race_item']
-            race_item['track_id'] = track.track_id
-            race = load_item_into_database(race_item, 'race', session)
-            if race is None:
+            # Load Horse Data
+            horse_item = entry_data['horse_item']
+            horse = load_item_into_database(horse_item, 'horse', session)
+            if horse is None:
                 return
 
+            # Jockey Data
+            jockey_item = entry_data['jockey_item']
+            jockey = load_item_into_database(jockey_item, 'jockey', session)
+
             # Load Entry Data
-            entry_item = results_item['entry_item']
+            entry_item = entry_data['entry_item']
             entry_item['race_id'] = race.race_id
             entry_item['horse_id'] = horse.horse_id
             entry = load_item_into_database(entry_item, 'entry', session)
             if entry is None:
                 continue
 
-        # Cycle through results items
-        for workout_group_item in data['workout_items']:
-
-            # Track Info
-            track_item = workout_group_item['track_item']
-            track = load_item_into_database(track_item, 'track', session)
-            if track is None:
-                continue
-
-            # Workout Info
-            workout_item = workout_group_item['workout_item']
-            workout_item['horse_id'] = horse.horse_id
-            workout_item['track_id'] = track.track_id
-            workout = load_item_into_database(workout_item, 'workout', session)
-            if workout is None:
-                continue
+            # Load point of call
+            point_of_call_list = entry_data['point_of_call_list']
+            for point_of_call_item in point_of_call_list:
+                point_of_call_item['entry_id'] = entry.entry_id
+                point_of_call = load_item_into_database(point_of_call_item, 'point_of_call', session)
 
 
 def fix_horse_registry(session):
@@ -1079,24 +1082,71 @@ if __name__ == '__main__':
         # Shut it down
         shutdown_session_and_engine(db_session)
 
+    if args.mode in ('download_equibase_charts', 'all'):
+
+        # Mode Tracking
+        modes_run.append('fix_equibase_horse_registry')
+
+        # Get database
+        db_session = get_db_session()
+
+        # Initialize browser
+        browser = initialize_stealth_browser()
+
+        # TODO: update query to not include equibase_chart_scrapes
+        while db_session.query(Races).filter(Races.equibase_chart_download_date.is_(None)).count() > 0:
+
+            # Get oldest race
+            race = db_session.query(Races).filter(Races.equibase_chart_download_date.is_(None)).order_by(
+                Races.card_date).first()
+
+            # Download pdf
+            chart_link = get_equibase_embedded_chart_link_from_race(db_session, race)
+            try:
+                pdf_path = get_html_from_page_with_captcha(browser, chart_link, 'object[type][data]')
+            except:
+                print(f'an exception happened during download of {chart_link}')
+                pdf_path = None
+
+            # Verify file download
+            if pdf_path:
+                if os.path.exists(pdf_path):
+                    download_date = datetime.datetime.now()
+                    print(f'Successfully downloaded {pdf_path}')
+                else:
+                    download_date = datetime.datetime(year=1900, month=1, day=1)
+            else:
+                download_date = datetime.datetime(year=1900, month=1, day=1)
+
+            # Write confirmation of download to database
+            downloaded_races = db_session.query(Races).filter(Races.card_date == race.card_date,
+                                                              Races.track_id == race.track_id).all()
+            for downloaded_race in downloaded_races:
+                downloaded_race.equibase_chart_download_date = download_date
+                db_session.commit()
+
+            # Pause because were nice
+            time.sleep(15)
+
+        # Close everything out
+        shutdown_session_and_engine(db_session)
+        shutdown_stealth_browser(browser)
+
     if args.mode in ('test'):
 
         # Mode Tracking
         modes_run.append('test')
 
         # Connect to the database
-        #db_session = get_db_session()
+        db_session = get_db_session()
 
-        # Get HTML
-        html = get_html_from_page_with_captcha('http://www.equibase.com/static/entry/index.html', 'a.entrSpacing')
-
-        # Get Links
-        link_list = equibase_entries_link_getter(html)
-
+        # Initialize browser
+        browser = initialize_stealth_browser()
 
 
         # Close everything out
-        #shutdown_session_and_engine(db_session)
+        shutdown_session_and_engine(db_session)
+        shutdown_stealth_browser(browser)
 
     if len(modes_run) == 0:
 

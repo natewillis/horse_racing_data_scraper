@@ -5,12 +5,13 @@ from pyppeteer_stealth import stealth
 import time
 import os
 import datetime
-from settings import CAPTCHA_STORAGE_PATH, TOR_CONTROL_PASSWORD
+from settings import CAPTCHA_STORAGE_PATH, TOR_CONTROL_PASSWORD, EQUIBASE_PDF_PATH
 import cv2
 import numpy as np
 import random
 from stem import Signal
 from stem.control import Controller
+import glob
 
 
 def reconnect_tor():
@@ -337,7 +338,43 @@ async def async_html_scrape_with_captcha(browser, url, loaded_selector):
     else:
 
         # To get here the page should've loaded successfully, grab the html!
-        html = await page.evaluate('document.body.innerHTML', force_expr=True)
+        if loaded_selector == 'object[type][data]':
+            pdf_object = await page.waitForSelector(loaded_selector)
+            link_href = await page.evaluate('(element) => element.data', pdf_object)
+
+            # Create unique path for download of pdf
+            path = os.path.join(EQUIBASE_PDF_PATH,datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
+            try:
+                os.mkdir(path)
+            except OSError:
+                print(f'Creation of the directory {path} failed')
+                return
+
+            # change default download behavior
+            cdp = await page.target.createCDPSession()
+            await cdp.send(
+                "Page.setDownloadBehavior",
+                {"behavior": "allow", "downloadPath": path},
+            )
+
+            # click download link
+            await page.click(f'a[href="{link_href.replace("https://www.equibase.com","").replace("/premium/","")}"')
+
+            # wait until file downloads or timeout
+            start_time = datetime.datetime.now()
+            file_downloaded_flag = len(glob.glob(os.path.join(path, '*.pdf'))) == 1
+            while not file_downloaded_flag and (datetime.datetime.now()-start_time)<datetime.timedelta(seconds=60):
+                time.sleep(1)
+                file_downloaded_flag = len(glob.glob(os.path.join(path, '*.pdf'))) == 1
+
+            # Handle the case where we timed out
+            if not file_downloaded_flag:
+                os.rmdir(path)
+                html = None
+            else:
+                html = glob.glob(os.path.join(path, '*.pdf'))[0]
+        else:
+            html = await page.evaluate('document.body.innerHTML', force_expr=True)
 
         # Close the page
         await page.close()

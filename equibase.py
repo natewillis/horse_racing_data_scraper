@@ -574,7 +574,3 @@ def equibase_entries_link_getter(html):
     # Return link list
     return link_list
 
-
-def chart_parser():
-    pass
-    #https://www.equibase.com/static/chart/pdf/CT051520USA.pdf

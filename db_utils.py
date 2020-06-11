@@ -55,6 +55,10 @@ def find_track_instance_from_item(item, session):
         return session.query(Tracks).filter(
             Tracks.name == item['name']
         ).first()
+    elif 'equibase_chart_name' in item:
+        return session.query(Tracks).filter(
+            Tracks.equibase_chart_name == item['equibase_chart_name']
+        ).first()
     else:
         return
 
