@@ -693,7 +693,7 @@ def convert_equibase_result_chart_pdf_to_item(pdf_filename):
                 'scratch_indicator': 'N',
                 'post_position': starter_item['PP']['whole_text'],
                 'program_number': starter_item['Pgm']['whole_text'],
-                'finish_position': None if starter_item['Fin']['main_text'] == '---' else starter_item['Fin']['main_text'],
+                'finish_position': None if not starter_item['Fin']['main_text'].isnumeric() else starter_item['Fin']['main_text'],
                 'weight': weight,
                 'comments': starter_item['Comments']['whole_text'],
                 'medication_equipment': starter_item['M/E']['whole_text'],
