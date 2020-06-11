@@ -350,23 +350,33 @@ def get_fractional_times_from_race_page(page, distance_feet, fractional_time_def
     if fractional_times_whole_line != '':
 
         track_condition_pattern = re.compile(r'(\d+:)?(\d+\.\d+)')
-        match_object = re.finditer(track_condition_pattern, fractional_times_whole_line)
-        for index, fractional_match in enumerate(match_object):
+        match_list = re.findall(track_condition_pattern, fractional_times_whole_line)
+        for index, fractional_match in enumerate(match_list):
 
             # Parse Minutes
-            if fractional_match.group(1) is None:
+            if fractional_match[0] == '':
                 minutes = 0
             else:
-                minutes = float(fractional_match.group(1)[:-1])
+                minutes = float(fractional_match[0][:-1])
 
             # Parse Seconds
-            seconds = float(fractional_match.group(2))
+            seconds = float(fractional_match[1])
 
             # Create total
             total_seconds = round((minutes * 60) + seconds, 2)
 
             # Find which point of call this is
-            fractional = fractional_time_definition['fractionals'][index]
+            if len(match_list) == len(fractional_time_definition['fractionals']) + 1:
+                if index == (len(fractional_time_definition['fractionals']) - 1):
+                    continue
+                elif index == len(fractional_time_definition['fractionals']):
+                    fractional = fractional_time_definition['fractionals'][index-1]
+                else:
+                    fractional = fractional_time_definition['fractionals'][index]
+            elif len(match_list) == len(fractional_time_definition['fractionals']):
+                fractional = fractional_time_definition['fractionals'][index]
+            else:
+                return []
 
             # Append item
             fractional_times.append({
@@ -545,6 +555,9 @@ def parse_horse_name_string_jockey_from_starter_text(starter_text):
 
 
 def convert_equibase_result_chart_pdf_to_item(pdf_filename):
+
+    # logging
+    print(f'processing {pdf_filename}')
 
     # setup script dir
     script_dir = os.path.dirname(os.path.abspath(__file__))

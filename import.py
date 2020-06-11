@@ -939,7 +939,10 @@ def scrape_equibase_charts(session):
             print(f'{file} had a None race')
         else:
             print(f'{file} parsed into {len(updated_races)} races and should be deleted')
-            os.remove(file)
+            try:
+                os.remove(file)
+            except PermissionError:
+                print(f'there was a problem deleting {file}')
 
     # remove empty folders again
     remove_empty_folders(EQUIBASE_PDF_PATH)

@@ -32,7 +32,10 @@ def remove_empty_folders(path):
     for folder in folders:
         if len(os.listdir(folder[0])) == 0:
             print(f'removing {folder[0]}')
-            os.rmdir(folder[0])
+            try:
+                os.rmdir(folder[0])
+            except PermissionError:
+                print(f'there was a problem deleting {folder[0]}')
 
 
 def lb_text_to_float(lb_text):
