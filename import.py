@@ -915,7 +915,7 @@ def scrape_equibase_charts(session):
     remove_empty_folders(EQUIBASE_PDF_PATH)
 
     # get file list
-    file_list = get_files_in_folders(EQUIBASE_PDF_PATH)
+    file_list = sorted(get_files_in_folders(EQUIBASE_PDF_PATH))
 
     # loop throug list
     for file in file_list:

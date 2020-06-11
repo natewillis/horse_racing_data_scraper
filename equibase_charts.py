@@ -661,6 +661,12 @@ def convert_equibase_result_chart_pdf_to_item(pdf_filename):
 
         # parse starters
         for starter_item in starter_data:
+
+            # Error checking
+            if 'Horse Name (Jockey)' not in starter_item:
+                print(f'the starter item is missing Horse Name (Jockey) in {pdf_filename}')
+                return []
+
             horse_name, horse_country, horse_state, jockey_first_name, jockey_last_name = \
                 parse_horse_name_string_jockey_from_starter_text(starter_item['Horse Name (Jockey)']['whole_text'])
 
