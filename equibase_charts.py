@@ -227,6 +227,9 @@ def get_race_type_breed_from_race_page(page, y0):
 
         breed = race_type_line_text.split(' - ')[-1].strip()
 
+        if breed == 'Quarter Horse':
+            breed = 'Quarterhorse'
+
         # Return it
         return race_type, race_class, breed
     else:
@@ -388,6 +391,15 @@ def get_starter_data_from_race_page(page):
     # starter parsing - find header
     starter_header = page('LTTextLineHorizontal:contains("Last Raced")')
     fractional_times_label = page('LTTextLineHorizontal:contains("Fractional Times")')
+    if len(fractional_times_label) == 0:
+        fractional_times_label = page('LTTextLineHorizontal:contains("Run-Up")')
+        if len(fractional_times_label) == 0:
+            return starter_data
+        else:
+            add_on_min_y0 = 0
+    else:
+        add_on_min_y0 = 9
+
 
     # grab y coordinates of the header row we found
     current_y0 = float(starter_header.attr('y0')) + float(starter_header.attr('height')) / 2 - 1
@@ -407,7 +419,7 @@ def get_starter_data_from_race_page(page):
     current_y1 = current_y0 + 2
 
     # figure out where to stop
-    min_y0 = float(fractional_times_label.attr('y1')) + 9
+    min_y0 = float(fractional_times_label.attr('y1')) + add_on_min_y0
 
     while current_y0 > min_y0:
         # get starter line pdf items

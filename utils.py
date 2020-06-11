@@ -77,39 +77,50 @@ def convert_mixed_fraction_to_num(num_string):
     # Check for fraction
     if 'AND' in num_string:
 
-        # Split the string into parts
-        split_number = num_string.split(' AND ')
-        whole_number_string = split_number[0]
-        fraction_number_string = split_number[1]
+        # Figure out if its a fraction or a big number
+        split_words = num_string.split(' ')
+        fraction_flag = False
+        for word in split_words:
+            if word in denominator_dictionary:
+                fraction_flag = True
 
-        # Whole number conversion
-        whole_number_int = w2n.word_to_num(whole_number_string)
+        if fraction_flag:
+            # Split the string into parts
+            split_number = num_string.split(' AND ')
+            whole_number_string = split_number[0]
+            fraction_number_string = split_number[1]
 
-        #Fraction conversion
-        split_fraction = fraction_number_string.split(' ')
-        if len(split_fraction) == 2:
+            # Whole number conversion
+            whole_number_int = w2n.word_to_num(whole_number_string)
 
-            # numerator
-            numerator = w2n.word_to_num(split_fraction[0].strip())
+            #Fraction conversion
+            split_fraction = fraction_number_string.split(' ')
+            if len(split_fraction) == 2:
 
-            # denominator
-            denominator_string = split_fraction[1].strip()
-            if denominator_string[-1] == 'S':
-                denominator_string = denominator_string[:-1]
+                # numerator
+                numerator = w2n.word_to_num(split_fraction[0].strip())
 
-            if denominator_string in denominator_dictionary:
-                denominator = denominator_dictionary[denominator_string]
-                fraction_part = round(numerator/denominator,  4)
+                # denominator
+                denominator_string = split_fraction[1].strip()
+                if denominator_string[-1] == 'S':
+                    denominator_string = denominator_string[:-1]
+
+                if denominator_string in denominator_dictionary:
+                    denominator = denominator_dictionary[denominator_string]
+                    fraction_part = round(numerator/denominator,  4)
+                else:
+                    print(f'{denominator_string} was not recognized!')
+                    fraction_part = 0
+
+                fraction_number = whole_number_int + fraction_part
+
             else:
-                print(f'{denominator_string} was not recognized!')
-                fraction_part = 0
 
-            fraction_number = whole_number_int + fraction_part
-
+                print(f'ERROR! {fraction_number_string} doesnt parse out of {num_string}')
+                fraction_number = 0
         else:
-
-            print(f'ERROR! {fraction_number_string} doesnt parse out of {num_string}')
-            fraction_number = 0
+            # its a big number
+            fraction_number = w2n.word_to_num(num_string)
 
     else:
 
