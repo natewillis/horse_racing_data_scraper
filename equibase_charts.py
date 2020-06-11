@@ -339,7 +339,6 @@ def get_fractional_times_from_race_page(page, distance_feet, fractional_time_def
     fractional_times = []
 
     # Figure out which fractional time object we need
-    print(distance_feet)
     fractional_time_definition = next(
         (x for x in fractional_time_definition_list if abs(x['floor'] - distance_feet) < 10),
         None
