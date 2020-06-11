@@ -4,6 +4,37 @@ import re
 from word2number import w2n
 import fractions
 
+
+def get_files_in_folders(path):
+
+    # init return list
+    file_list = []
+
+    # get all folders but base
+    folders = list(os.walk(path))[1:]
+
+    # loop folders
+    for folder in folders:
+        files = os.listdir(folder[0])
+        for file in files:
+            file_list.append(os.path.join(folder[0], file))
+
+    # return
+    return file_list
+
+
+def remove_empty_folders(path):
+
+    # get all folders but base
+    folders = list(os.walk(path))[1:]
+
+    # loop folders
+    for folder in folders:
+        if len(os.listdir(folder[0])) == 0:
+            print(f'removing {folder[0]}')
+            os.rmdir(folder[0])
+
+
 def lb_text_to_float(lb_text):
 
     # Process

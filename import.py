@@ -8,7 +8,7 @@ import random
 from sqlalchemy import or_, and_
 from db_utils import get_db_session, shutdown_session_and_engine, create_new_instance_from_item, \
     load_item_into_database, find_instance_from_item
-from utils import get_list_of_files, get_horse_origin_from_name
+from utils import get_list_of_files, remove_empty_folders, get_files_in_folders
 from models import Races, Tracks, Entries, Horses
 import csv
 from drf import create_track_item_from_drf_data, create_race_item_from_drf_data, create_horse_item_from_drf_data, \
@@ -22,6 +22,7 @@ from equibase import get_db_items_from_equibase_whole_card_entry_html, get_equib
     get_db_items_from_equibase_horse_html, get_equibase_horse_history_link_from_horse, equibase_entries_link_getter
 from distil import initialize_stealth_browser, shutdown_stealth_browser, get_html_from_page_with_captcha
 from equibase_charts import convert_equibase_result_chart_pdf_to_item, get_equibase_embedded_chart_link_from_race
+from settings import EQUIBASE_PDF_PATH
 
 def test_rp():
     race_url = 'https://www.racingpost.com/results/272/gulfstream-park/2020-01-25/750172'
@@ -769,6 +770,9 @@ def load_equibase_horse_data_into_database(data, session):
 
 def load_equibase_chart_data_into_database(data, session):
 
+    # init return race list
+    races = []
+
     for data_item in data:
 
         # Track Info
@@ -781,6 +785,7 @@ def load_equibase_chart_data_into_database(data, session):
         race_item = data_item['race_item']
         race_item['track_id'] = track.track_id
         race = load_item_into_database(race_item, 'race', session)
+        races.append(race)
         if race is None:
             return
 
@@ -817,6 +822,9 @@ def load_equibase_chart_data_into_database(data, session):
                 point_of_call_item['entry_id'] = entry.entry_id
                 point_of_call = load_item_into_database(point_of_call_item, 'point_of_call', session)
 
+    # return race list so we can check if it finished
+    return races
+
 
 def fix_horse_registry(session):
 
@@ -845,6 +853,84 @@ def fix_horse_registry(session):
             pass
 
     session.commit()
+
+
+def download_equibase_charts(session, browser):
+
+    # Loop while theres still charts to download
+    while session.query(Races).filter(
+            Races.equibase_chart_download_date.is_(None),
+            Races.equibase_chart_scrape.isnot(True)
+    ).count() > 0:
+
+        # Get oldest race
+        race = session.query(Races).filter(
+            Races.equibase_chart_download_date.is_(None),
+            Races.equibase_chart_scrape.isnot(True)
+        ).order_by(
+            Races.card_date
+        ).first()
+
+        # Download pdf
+        chart_link = get_equibase_embedded_chart_link_from_race(db_session, race)
+        try:
+            pdf_path = get_html_from_page_with_captcha(browser, chart_link, 'object[type][data]')
+        except:
+            print(f'an exception happened during download of {chart_link}')
+            pdf_path = None
+
+        # Verify file download
+        if pdf_path:
+            if os.path.exists(pdf_path):
+                download_date = datetime.datetime.now()
+                print(f'Successfully downloaded {pdf_path}')
+            else:
+                download_date = datetime.datetime(year=1900, month=1, day=1)
+        else:
+            download_date = datetime.datetime(year=1900, month=1, day=1)
+
+        # Write confirmation of download to database
+        downloaded_races = session.query(Races).filter(Races.card_date == race.card_date,
+                                                          Races.track_id == race.track_id).all()
+        for downloaded_race in downloaded_races:
+            downloaded_race.equibase_chart_download_date = download_date
+            session.commit()
+
+        # Pause because were nice
+        time.sleep(15)
+
+
+def scrape_equibase_charts(session):
+
+    # Remove empty folders
+    remove_empty_folders(EQUIBASE_PDF_PATH)
+
+    # get file list
+    file_list = get_files_in_folders(EQUIBASE_PDF_PATH)
+
+    # loop throug list
+    for file in file_list:
+
+        # Check if it still exists
+        if not os.path.exists(file):
+            continue
+
+        # parse the file
+        pdf_items = convert_equibase_result_chart_pdf_to_item(file)
+
+        # load the file in the database
+        updated_races = load_equibase_chart_data_into_database(pdf_items, session)
+
+        if len(updated_races) == 0:
+            print(f'{file} resulted in 0 updated races')
+        elif None in updated_races:
+            print(f'{file} had a None race')
+        else:
+            print(f'{file} parsed into {len(updated_races)} races and should be deleted')
+            os.remove(file)
+
+    # remove empty folders again
+    remove_empty_folders(EQUIBASE_PDF_PATH)
 
 
 if __name__ == '__main__':
@@ -1093,60 +1179,40 @@ if __name__ == '__main__':
         # Initialize browser
         browser = initialize_stealth_browser()
 
-        # TODO: update query to not include equibase_chart_scrapes
-        while db_session.query(Races).filter(Races.equibase_chart_download_date.is_(None)).count() > 0:
-
-            # Get oldest race
-            race = db_session.query(Races).filter(Races.equibase_chart_download_date.is_(None)).order_by(
-                Races.card_date).first()
-
-            # Download pdf
-            chart_link = get_equibase_embedded_chart_link_from_race(db_session, race)
-            try:
-                pdf_path = get_html_from_page_with_captcha(browser, chart_link, 'object[type][data]')
-            except:
-                print(f'an exception happened during download of {chart_link}')
-                pdf_path = None
-
-            # Verify file download
-            if pdf_path:
-                if os.path.exists(pdf_path):
-                    download_date = datetime.datetime.now()
-                    print(f'Successfully downloaded {pdf_path}')
-                else:
-                    download_date = datetime.datetime(year=1900, month=1, day=1)
-            else:
-                download_date = datetime.datetime(year=1900, month=1, day=1)
-
-            # Write confirmation of download to database
-            downloaded_races = db_session.query(Races).filter(Races.card_date == race.card_date,
-                                                              Races.track_id == race.track_id).all()
-            for downloaded_race in downloaded_races:
-                downloaded_race.equibase_chart_download_date = download_date
-                db_session.commit()
-
-            # Pause because were nice
-            time.sleep(15)
+        # Run code
+        download_equibase_charts(db_session, browser)
 
         # Close everything out
         shutdown_session_and_engine(db_session)
         shutdown_stealth_browser(browser)
+
+    if args.mode in ('scrape_equibase_charts', 'all'):
+
+        # Mode Tracking
+        modes_run.append('scrape_equibase_charts')
+
+        # Get database
+        db_session = get_db_session()
+
+        # run code
+        scrape_equibase_charts(db_session)
+
+        # close database
+        shutdown_session_and_engine(db_session)
 
     if args.mode in ('test'):
 
         # Mode Tracking
-        modes_run.append('test')
+        modes_run.append('scrape_equibase_charts')
 
-        # Connect to the database
+        # Get database
         db_session = get_db_session()
 
-        # Initialize browser
-        browser = initialize_stealth_browser()
+        # run code
+        scrape_equibase_charts(db_session)
 
-
-        # Close everything out
+        # close database
         shutdown_session_and_engine(db_session)
-        shutdown_stealth_browser(browser)
 
     if len(modes_run) == 0:
 
