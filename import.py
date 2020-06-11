@@ -1085,7 +1085,7 @@ if __name__ == '__main__':
     if args.mode in ('download_equibase_charts', 'all'):
 
         # Mode Tracking
-        modes_run.append('fix_equibase_horse_registry')
+        modes_run.append('download_equibase_charts')
 
         # Get database
         db_session = get_db_session()
