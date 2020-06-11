@@ -915,6 +915,9 @@ def scrape_equibase_charts(session):
         if not os.path.exists(file):
             continue
 
+        if file[-3:] != 'pdf':
+            continue
+
         # parse the file
         pdf_items = convert_equibase_result_chart_pdf_to_item(file)
 
