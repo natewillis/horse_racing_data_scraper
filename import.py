@@ -32,8 +32,11 @@ def test_rp():
 
 def import_track_codes():
 
+    # setup script dir
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+
     # Set file name
-    file_name = 'resources/track_codes.csv'
+    file_name = os.path.join(script_dir, 'resources', 'track_codes.csv')
 
     # Connect to the database
     session = get_db_session()
@@ -55,7 +58,10 @@ def import_track_codes():
             track = load_item_into_database(track_item, 'track', session)
 
     # Racing Post Codes
-    with open('resources/rp_track_codes.json') as json_file:
+
+    # Set file name
+    file_name = os.path.join(script_dir, 'resources', 'rp_track_codes.json')
+    with open(file_name) as json_file:
         data = json.load(json_file)
 
     for rp_track_item in data['usa']:
@@ -78,7 +84,10 @@ def import_track_codes():
             session.commit()
 
     # Chart Parser Codes
-    with open('resources/track-codes-chart-parser.csv') as csv_file:
+
+    # Set file name
+    file_name = os.path.join(script_dir, 'resources', 'track-codes-chart-parser.csv')
+    with open(file_name) as csv_file:
         csv_reader = csv.reader(csv_file, delimiter=';')
         for row in csv_reader:
             # Parse CSV into Variables

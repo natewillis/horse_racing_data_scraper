@@ -7,7 +7,7 @@ import math
 import json
 from pprint import pprint
 from models import Tracks
-
+import os
 
 def get_equibase_embedded_chart_link_from_params(track_code, card_date, track_country):
 
@@ -534,13 +534,16 @@ def parse_horse_name_string_jockey_from_starter_text(starter_text):
 
 def convert_equibase_result_chart_pdf_to_item(pdf_filename):
 
+    # setup script dir
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+
     # Init Return List
     data_list = []
 
     # Load auxilary data
-    with open('resources/fractional-times.json', 'r') as fractional_time_file:
+    with open(os.path.join(script_dir, 'resources', 'fractional-times.json'), 'r') as fractional_time_file:
         fractional_time_definition = json.load(fractional_time_file)
-    with open('resources/points-of-call.json', 'r') as points_of_call_file:
+    with open(os.path.join(script_dir, 'resources', 'points-of-call.json'), 'r') as points_of_call_file:
         points_of_call_definition = json.load(points_of_call_file)
 
     # Load pdf chart
