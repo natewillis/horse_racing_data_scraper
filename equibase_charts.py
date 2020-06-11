@@ -37,12 +37,20 @@ def whole_line_selector_string(y0, y1):
 
 def get_stats_from_character_list(character_list):
 
-    return {
-        'min_y0': min([item['y0'] for item in character_list]),
-        'max_y0': max([item['y0'] for item in character_list]),
-        'min_height': min([item['height'] for item in character_list]),
-        'max_height': max([item['height'] for item in character_list])
-    }
+    if len(character_list) == 0:
+        return {
+            'min_y0': 0,
+            'max_y0': 0,
+            'min_height': 0,
+            'max_height': 0
+        }
+    else:
+        return {
+            'min_y0': min([item['y0'] for item in character_list]),
+            'max_y0': max([item['y0'] for item in character_list]),
+            'min_height': min([item['height'] for item in character_list]),
+            'max_height': max([item['height'] for item in character_list])
+        }
 
 
 def parse_line_items_based_on_header_list(pdf_items, header_list):
@@ -61,6 +69,9 @@ def parse_line_items_based_on_header_list(pdf_items, header_list):
 
     # get stats
     list_stats = get_stats_from_character_list(sorted_character_list)
+
+    if len(sorted_character_list) == 0:
+        return None, list_stats
 
     # iterate through characters
     for item in sorted_character_list:
