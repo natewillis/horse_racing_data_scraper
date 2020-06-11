@@ -933,7 +933,9 @@ def scrape_equibase_charts(session):
         # load the file in the database
         updated_races = load_equibase_chart_data_into_database(pdf_items, session)
 
-        if len(updated_races) == 0:
+        if updated_races is None:
+            print(f'{file} resulted in 0 updated races')
+        elif len(updated_races) == 0:
             print(f'{file} resulted in 0 updated races')
         elif None in updated_races:
             print(f'{file} had a None race')
