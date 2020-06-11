@@ -663,6 +663,9 @@ def convert_equibase_result_chart_pdf_to_item(pdf_filename):
         for starter_item in starter_data:
 
             # Error checking
+            if starter_item is None:
+                print(f'something is wrong with the starter item being None  in {pdf_filename}')
+                return []
             if 'Horse Name (Jockey)' not in starter_item:
                 print(f'the starter item is missing Horse Name (Jockey) in {pdf_filename}')
                 return []
