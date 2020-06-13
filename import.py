@@ -927,13 +927,15 @@ def scrape_equibase_charts(session):
         if file[-3:] != 'pdf':
             continue
 
-        # parse the file
-        pdf_items = convert_equibase_result_chart_pdf_to_item(file)
-
-        # load the file in the database
         try:
+            # parse the file
+            pdf_items = convert_equibase_result_chart_pdf_to_item(file)
+
+            # load the file in the database
             updated_races = load_equibase_chart_data_into_database(pdf_items, session)
+
         except:
+
             print(f'something errored out with {file}')
             updated_races = None
 
