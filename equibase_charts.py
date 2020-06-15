@@ -190,7 +190,7 @@ def process_race_string(race_string):
     # Race Number
     race_number_string = split_race_string[2]
     race_number_split = race_number_string.split('Race ')
-    return_race_dict['race_number'] = int(race_number_split[1].strip())
+    return_race_dict['race_number'] = int(''.join(ch for ch in race_number_split[1].strip() if ch.isdigit()))
 
     # Return dictionary
     return return_race_dict
@@ -733,8 +733,8 @@ def convert_equibase_result_chart_pdf_to_item(pdf_filename):
 
             entry_item = {
                 'scratch_indicator': 'N',
-                'post_position': starter_item['PP']['whole_text'],
-                'program_number': starter_item['Pgm']['whole_text'],
+                'post_position': ''.join(ch for ch in starter_item['PP']['whole_text'].strip() if ch.isdigit()),
+                'program_number': starter_item['Pgm']['whole_text'].strip(),
                 'finish_position': None if not starter_item['Fin']['main_text'].isnumeric() else starter_item['Fin']['main_text'],
                 'weight': weight,
                 'comments': starter_item['Comments']['whole_text'],
