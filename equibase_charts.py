@@ -344,6 +344,21 @@ def get_track_condition_weather_from_race_page(page):
         return None, None
 
 
+def get_cancelled_status_from_race_page(page):
+
+    # Get the whole line
+    cancelled_whole_line = get_whole_horizontal_line_text_from_contains(page, 'Cancelled - ')
+
+    if cancelled_whole_line != '':
+
+        print(f'The race was cancelled: {cancelled_whole_line}')
+        return True
+
+    else:
+
+        return False
+
+
 def get_fractional_times_from_race_page(page, distance_feet, fractional_time_definition_list):
 
     # Init variables
@@ -607,6 +622,9 @@ def convert_equibase_result_chart_pdf_to_item(pdf_filename):
         else:
             next_race_page = None
 
+        # Check for cancelled race
+        if get_cancelled_status_from_race_page(race_page):
+            continue
 
         # Get race type
         race_type, race_class, breed = get_race_type_breed_from_race_page(race_page, float(race_string_object.layout.y0) - 9)
