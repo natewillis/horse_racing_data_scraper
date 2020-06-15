@@ -8,7 +8,7 @@ import random
 from sqlalchemy import or_, and_
 from db_utils import get_db_session, shutdown_session_and_engine, create_new_instance_from_item, \
     load_item_into_database, find_instance_from_item
-from utils import get_list_of_files, remove_empty_folders, get_files_in_folders
+from utils import get_list_of_files, remove_empty_folders, get_files_in_folders, str2bool
 from models import Races, Tracks, Entries, Horses
 import csv
 from drf import create_track_item_from_drf_data, create_race_item_from_drf_data, create_horse_item_from_drf_data, \
@@ -23,6 +23,7 @@ from equibase import get_db_items_from_equibase_whole_card_entry_html, get_equib
 from distil import initialize_stealth_browser, shutdown_stealth_browser, get_html_from_page_with_captcha
 from equibase_charts import convert_equibase_result_chart_pdf_to_item, get_equibase_embedded_chart_link_from_race
 from settings import EQUIBASE_PDF_PATH
+from pprint import pprint
 
 def test_rp():
     race_url = 'https://www.racingpost.com/results/272/gulfstream-park/2020-01-25/750172'
@@ -884,9 +885,16 @@ def download_equibase_charts(session, browser):
         chart_link = get_equibase_embedded_chart_link_from_race(db_session, race)
         try:
             pdf_path = get_html_from_page_with_captcha(browser, chart_link, 'object[type][data]')
+
+        except (KeyboardInterrupt, SystemExit):  # handle control c
+            raise
+
         except:
-            print(f'an exception happened during download of {chart_link}')
-            pdf_path = None
+            if debug_flag:
+                raise
+            else:
+                print(f'an exception happened during download of {chart_link}')
+                pdf_path = None
 
         # Verify file download
         if pdf_path:
@@ -934,10 +942,15 @@ def scrape_equibase_charts(session):
             # load the file in the database
             updated_races = load_equibase_chart_data_into_database(pdf_items, session)
 
-        except:
+        except (KeyboardInterrupt, SystemExit):  # handle control c
+            raise
 
-            print(f'something errored out with {file}')
-            updated_races = None
+        except:
+            if debug_flag:
+                raise
+            else:
+                print(f'something errored out with {file}')
+                updated_races = None
 
         if updated_races is None:
             print(f'{file} resulted in 0 updated races')
@@ -966,7 +979,19 @@ if __name__ == '__main__':
                             required=True,
                             metavar='MODE'
                             )
+    arg_parser.add_argument('--debug',
+                            help="Debug mode, disables error handling if false",
+                            type=str2bool,
+                            required=False,
+                            default=False,
+                            metavar='DEBUG'
+                            )
     args = arg_parser.parse_args()
+
+    # Handle debug
+    global debug_flag
+    debug_flag = args.debug
+    print(f'debug mode is {debug_flag}')
 
     # Setup mode tracker
     modes_run = []
