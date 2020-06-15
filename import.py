@@ -954,8 +954,14 @@ def scrape_equibase_charts(session):
 
         if updated_races is None:
             print(f'{file} resulted in 0 updated races')
+            if debug_flag:
+                pprint(pdf_items)
+                exit(0)
         elif len(updated_races) == 0:
             print(f'{file} resulted in 0 updated races')
+            if debug_flag:
+                pprint(pdf_items)
+                exit(0)
         elif None in updated_races:
             print(f'{file} had a None race')
         else:
