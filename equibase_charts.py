@@ -141,7 +141,9 @@ def parse_starter_header_line(pdf_items):
             last_character_x1 = character_item['x0']
 
         # Check for division
-        if (character_item['x0'] - last_character_x1) > column_div_width or character_item['text'] == 'M':
+        if (character_item['x0'] - last_character_x1) > column_div_width or \
+                character_item['text'] == 'M' or \
+                character_item['text'] == 'C':
             column_list.append({
                 'start_x': current_column_x0,
                 'end_x': character_item['x0'],
