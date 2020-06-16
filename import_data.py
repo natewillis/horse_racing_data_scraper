@@ -1060,6 +1060,9 @@ if __name__ == '__main__':
             db_session = get_db_session()
 
             for current_track in track_data['raceTracks']['allTracks']:
+                print(current_track)
+                if current_track['country'] != 'USA':
+                    continue
                 for card in current_track['cards']:
                     if card['raceDate']['year'] is not None and \
                             card['raceDate']['month'] is not None and \
