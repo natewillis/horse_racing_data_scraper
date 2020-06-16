@@ -230,7 +230,6 @@ def get_db_items_from_equibase_whole_card_entry_html(html):
                         'horse_country': horse_country,
                         'horse_state': horse_state,
                         'equibase_horse_id': equibase_id,
-                        'equibase_horse_type': equibase_type,
                         'equibase_horse_registry': equibase_registry
                     }
 
