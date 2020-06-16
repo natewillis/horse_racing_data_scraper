@@ -7,7 +7,7 @@ import time
 import random
 from sqlalchemy import or_, and_
 from db_utils import get_db_session, shutdown_session_and_engine, create_new_instance_from_item, \
-    load_item_into_database, find_instance_from_item
+    load_item_into_database, find_instance_from_item, find_horse_instance_from_item_and_race
 from utils import get_list_of_files, remove_empty_folders, get_files_in_folders, str2bool
 from models import Races, Tracks, Entries, Horses
 import csv
@@ -729,12 +729,16 @@ def get_equibase_horse_links_for_entry_horses_without_details(session):
     return link_list
 
 
-def load_equibase_horse_data_into_database(data, session):
+def load_equibase_horse_data_into_database(data, session, existing_race=None):
 
     # Load Horse Data
     horse_item = data['horse_item']
-    horse = load_item_into_database(horse_item, 'horse', session)
+    if existing_race is not None:
+        horse = find_horse_instance_from_item_and_race(horse_item, existing_race, session)
+    else:
+        horse = load_item_into_database(horse_item, 'horse', session)
     if horse is None:
+        print(f'{horse_item} with existing race {existing_race} didnt return an item')
         return
 
     # Cycle through results items
@@ -1001,7 +1005,7 @@ def scrape_googles_equibase_horse_detail_links(session, browser):
             print(f'getting {horse_link}')
             horse_html = get_html_from_page_with_captcha(browser, horse_link, 'td.track')
             db_items = get_db_items_from_equibase_horse_html(horse_html, horse_link)
-            load_equibase_horse_data_into_database(db_items, session)
+            load_equibase_horse_data_into_database(db_items, session, race)
             time.sleep(120)
 
 

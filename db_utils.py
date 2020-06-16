@@ -104,6 +104,13 @@ def find_horse_instance_from_item(item, session):
     ).first()
 
 
+def find_horse_instance_from_item_and_race(item, race, session):
+    return session.query(Horses).join(Entries).join(Races).filter(
+        Horses.horse_name == item['horse_name'],
+        Races.race_id == race.race_id,
+    ).first()
+
+
 def find_entry_instance_from_item(item, session):
     return session.query(Entries).filter(
         Entries.race_id == item['race_id'],
