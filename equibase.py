@@ -4,7 +4,8 @@ import datetime
 import re
 from utils import get_horse_origin_from_name
 from googlesearch import search
-from distil import get_html_from_page_with_captcha
+from time import sleep
+from urllib.error import HTTPError
 
 
 def parse_equibase_horse_detail_link_for_id(link):
@@ -610,7 +611,13 @@ def get_equibase_horse_link_from_google(horse):
     search_string = f'site:equibase.com "{horse.horse_name}" "Horse Profile"'
 
     # Perform search
-    google_results = search(search_string)
+    timeout_flag = True
+    while timeout_flag:
+        try:
+            google_results = search(search_string)
+            timeout_flag = False
+        except HTTPError:
+            sleep(600)
 
     # Check result
     for result in google_results:
@@ -624,51 +631,6 @@ def get_equibase_horse_link_from_google(horse):
     return None
 
 
-def equibase_horse_id_google_getter(session, browser):
-
-    # Perform horse query
-    query = session.query(
-        Horses, Races, Tracks, Entries
-    ).filter(
-        Horses.horse_id == Entries.horse_id
-    ).filter(
-        Races.race_id == Entries.race_id
-    ).filter(
-        Tracks.track_id == Races.track_id
-    ).filter(
-        Horses.equibase_horse_id.is_(None)
-    ).filter(
-        Races.drf_entries == True
-    ).order_by(Races.card_date).all()
-
-    search_strings = []
-    for horse, race, track, entry in query:
-        search_string = f'site:equibase.com "{horse.horse_name}" "Horse Profile"'
-        search_strings.append(search_string)
-
-    # De-duplicate
-    search_strings = list(dict.fromkeys(search_strings))
-
-    # Collect Urls
-    horse_detail_urls = []
-    for search_string in search_strings:
-        google_results = search(search_string)
-        for result in google_results:
-
-            # Check returned link
-            equibase_horse_id, equibase_registry = parse_equibase_horse_detail_link_for_id(result)
-
-            # If its a valid link, parse it
-            if equibase_horse_id is not None and equibase_registry is not None:
-                print(f'getting {result}')
-                horse_html = get_html_from_page_with_captcha(browser, result, 'td.track')
-                db_items = get_db_items_from_equibase_horse_html(horse_html, result)
-                load_equibase_horse_data_into_database(db_items, session)
-
-            break
-
-    # Return urls
-    return horse_detail_urls
 
 
 

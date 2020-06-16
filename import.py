@@ -1002,6 +1002,7 @@ def scrape_googles_equibase_horse_detail_links(session, browser):
             horse_html = get_html_from_page_with_captcha(browser, horse_link, 'td.track')
             db_items = get_db_items_from_equibase_horse_html(horse_html, horse_link)
             load_equibase_horse_data_into_database(db_items, session)
+            time.sleep(120)
 
 
 if __name__ == '__main__':
