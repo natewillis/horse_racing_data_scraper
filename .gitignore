@@ -144,3 +144,4 @@ settings.py
 
 selenium/
 chromedriver.exe
+.google-cookie

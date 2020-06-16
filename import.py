@@ -19,7 +19,8 @@ from brisnet import scrape_spot_plays, create_track_item_from_brisnet_spot_play,
     create_race_item_from_brisnet_spot_play, create_horse_item_from_brisnet_spot_play, \
     create_entry_item_from_brisnet_spot_play, create_pick_item_from_brisnet_spot_play
 from equibase import get_db_items_from_equibase_whole_card_entry_html, get_equibase_whole_card_entry_url_from_race, \
-    get_db_items_from_equibase_horse_html, get_equibase_horse_history_link_from_horse, equibase_entries_link_getter
+    get_db_items_from_equibase_horse_html, get_equibase_horse_history_link_from_horse, equibase_entries_link_getter, \
+    get_equibase_horse_link_from_google
 from distil import initialize_stealth_browser, shutdown_stealth_browser, get_html_from_page_with_captcha
 from equibase_charts import convert_equibase_result_chart_pdf_to_item, get_equibase_embedded_chart_link_from_race
 from settings import EQUIBASE_PDF_PATH
@@ -975,6 +976,34 @@ def scrape_equibase_charts(session):
     remove_empty_folders(EQUIBASE_PDF_PATH)
 
 
+def scrape_googles_equibase_horse_detail_links(session, browser):
+
+    # Perform horse query
+    query = session.query(
+        Horses, Races, Tracks, Entries
+    ).filter(
+        Horses.horse_id == Entries.horse_id
+    ).filter(
+        Races.race_id == Entries.race_id
+    ).filter(
+        Tracks.track_id == Races.track_id
+    ).filter(
+        Horses.equibase_horse_id.is_(None)
+    ).filter(
+        Races.drf_entries == True
+    ).order_by(Races.card_date).all()
+
+    search_strings = []
+    for horse, race, track, entry in query:
+        print(f'searching for {horse.horse_name}')
+        horse_link = get_equibase_horse_link_from_google(horse)
+        if horse_link:
+            print(f'getting {horse_link}')
+            horse_html = get_html_from_page_with_captcha(browser, horse_link, 'td.track')
+            db_items = get_db_items_from_equibase_horse_html(horse_html, horse_link)
+            load_equibase_horse_data_into_database(db_items, session)
+
+
 if __name__ == '__main__':
 
     # Argument Parsing
@@ -997,7 +1026,8 @@ if __name__ == '__main__':
     # Handle debug
     global debug_flag
     debug_flag = args.debug
-    print(f'debug mode is {debug_flag}')
+    if debug_flag:
+        print(f'debug mode is {debug_flag}')
 
     # Setup mode tracker
     modes_run = []
@@ -1186,11 +1216,29 @@ if __name__ == '__main__':
         for equibase_link_url in equibase_link_list:
             print(f'getting {equibase_link_url}')
             horse_html = get_html_from_page_with_captcha(browser, equibase_link_url, 'td.track')
-            db_items = get_db_items_from_equibase_horse_html(horse_html)
+            db_items = get_db_items_from_equibase_horse_html(horse_html, equibase_link_url)
             load_equibase_horse_data_into_database(db_items, db_session)
-            sleep_number = random.randrange(15, 30)
+            sleep_number = random.randrange(5, 15)
             print(f'Sleeping {sleep_number} seconds')
             time.sleep(sleep_number)
+
+        # Close everything out
+        shutdown_session_and_engine(db_session)
+        shutdown_stealth_browser(browser)
+
+    if args.mode in ('find_equibase_horse_ids'):
+
+        # Mode Tracking
+        modes_run.append('equibase_horse_details')
+
+        # Connect to the database
+        db_session = get_db_session()
+
+        # Initialize browser
+        browser = initialize_stealth_browser()
+
+        # Run subroutine
+        scrape_googles_equibase_horse_detail_links(db_session, browser)
 
         # Close everything out
         shutdown_session_and_engine(db_session)

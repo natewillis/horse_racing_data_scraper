@@ -1,8 +1,34 @@
-from models import Tracks
+from models import Tracks, Horses, Races, Entries
 from bs4 import BeautifulSoup
 import datetime
 import re
 from utils import get_horse_origin_from_name
+from googlesearch import search
+from distil import get_html_from_page_with_captcha
+
+
+def parse_equibase_horse_detail_link_for_id(link):
+
+    horse_id_pattern = r'type=Horse&refno=(\d+)&registry=([A-Za-z0-9]+)&rbt=([A-Za-z0-9]+)'
+
+    # Horse Id
+    horse_id_pattern = r'refno=(\d+)'
+    horse_id_match_obj = re.search(horse_id_pattern, link)
+    if horse_id_match_obj:
+        equibase_id = int(horse_id_match_obj.group(1))
+    else:
+        equibase_id = None
+
+    # Registry
+    registry_pattern = r'registry=([A-Za-z0-9]+)'
+    registry_match_obj = re.search(registry_pattern, link)
+    if registry_match_obj:
+        registry = registry_match_obj.group(1).strip().upper()
+    else:
+        registry = None
+
+    return equibase_id, registry
+
 
 def get_equibase_horse_history_link_from_params(equibase_horse_id, equibase_horse_registry):
 
@@ -194,12 +220,8 @@ def get_db_items_from_equibase_whole_card_entry_html(html):
 
                 # Get equibase identifiers
                 horse_link = horse_name_a.get('href').replace('®', '&reg')
-                horse_link_pattern = r'type=Horse&refno=(\d+)&registry=([A-Za-z0-9]+)&rbt=([A-Za-z0-9]+)'
-                horse_link_match_obj = re.search(horse_link_pattern, horse_link)
-                if horse_link_match_obj:
-                    equibase_id = int(horse_link_match_obj.group(1))
-                    equibase_type = horse_link_match_obj.group(3).strip().upper()
-                    equibase_registry = horse_link_match_obj.group(2).strip().upper()
+                equibase_id, equibase_registry = parse_equibase_horse_detail_link_for_id(horse_link)
+                if equibase_id is not None and equibase_registry is not None:
 
                     # store horse object to write
                     entry_item['horse_item'] = {
@@ -296,7 +318,7 @@ def get_db_items_from_equibase_whole_card_entry_html(html):
     return return_list
 
 
-def get_db_items_from_equibase_horse_html(html):
+def get_db_items_from_equibase_horse_html(html, link_url):
 
 
     # Initialize horse items
@@ -321,6 +343,9 @@ def get_db_items_from_equibase_horse_html(html):
         return return_dict
     horse_name, horse_country, horse_state = get_horse_origin_from_name(horse_name_h2.text.strip().upper())
 
+    # Get horse_id from url
+    equibase_id, equibase_registry = parse_equibase_horse_detail_link_for_id(link_url)
+
     # Find Horse Profile
     horse_profile_h5 = soup.find('h5', {'class': ['horse-profile-top-bar-headings']})
     horse_profile_string = horse_profile_h5.text.strip().upper()
@@ -335,14 +360,18 @@ def get_db_items_from_equibase_horse_html(html):
             'horse_name': horse_name,
             'horse_country': horse_country,
             'horse_state': horse_state,
-            'equibase_horse_detail_scrape_date': datetime.datetime.utcnow()
+            'equibase_horse_detail_scrape_date': datetime.datetime.utcnow(),
+            'equibase_horse_id': equibase_id,
+            'equibase_horse_registry': equibase_registry
         }
     else:
         return_dict['horse_item'] = {
             'horse_name': horse_name,
             'horse_country': horse_country,
             'horse_state': horse_state,
-            'equibase_horse_detail_scrape_date': datetime.datetime.utcnow()
+            'equibase_horse_detail_scrape_date': datetime.datetime.utcnow(),
+            'equibase_horse_id': equibase_id,
+            'equibase_horse_registry': equibase_registry
         }
 
     # Find Results Table
@@ -573,4 +602,74 @@ def equibase_entries_link_getter(html):
 
     # Return link list
     return link_list
+
+
+def get_equibase_horse_link_from_google(horse):
+
+    # Form search string
+    search_string = f'site:equibase.com "{horse.horse_name}" "Horse Profile"'
+
+    # Perform search
+    google_results = search(search_string)
+
+    # Check result
+    for result in google_results:
+        equibase_horse_id, equibase_registry = parse_equibase_horse_detail_link_for_id(result)
+
+        # If its a valid link, return it
+        if equibase_horse_id is not None and equibase_registry is not None:
+            return result
+
+    # Return nothing since we never returned a valid link
+    return None
+
+
+def equibase_horse_id_google_getter(session, browser):
+
+    # Perform horse query
+    query = session.query(
+        Horses, Races, Tracks, Entries
+    ).filter(
+        Horses.horse_id == Entries.horse_id
+    ).filter(
+        Races.race_id == Entries.race_id
+    ).filter(
+        Tracks.track_id == Races.track_id
+    ).filter(
+        Horses.equibase_horse_id.is_(None)
+    ).filter(
+        Races.drf_entries == True
+    ).order_by(Races.card_date).all()
+
+    search_strings = []
+    for horse, race, track, entry in query:
+        search_string = f'site:equibase.com "{horse.horse_name}" "Horse Profile"'
+        search_strings.append(search_string)
+
+    # De-duplicate
+    search_strings = list(dict.fromkeys(search_strings))
+
+    # Collect Urls
+    horse_detail_urls = []
+    for search_string in search_strings:
+        google_results = search(search_string)
+        for result in google_results:
+
+            # Check returned link
+            equibase_horse_id, equibase_registry = parse_equibase_horse_detail_link_for_id(result)
+
+            # If its a valid link, parse it
+            if equibase_horse_id is not None and equibase_registry is not None:
+                print(f'getting {result}')
+                horse_html = get_html_from_page_with_captcha(browser, result, 'td.track')
+                db_items = get_db_items_from_equibase_horse_html(horse_html, result)
+                load_equibase_horse_data_into_database(db_items, session)
+
+            break
+
+    # Return urls
+    return horse_detail_urls
+
+
+
 
