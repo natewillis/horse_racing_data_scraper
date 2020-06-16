@@ -1241,7 +1241,7 @@ if __name__ == '__main__':
     if args.mode in ('find_equibase_horse_ids'):
 
         # Mode Tracking
-        modes_run.append('equibase_horse_details')
+        modes_run.append('find_equibase_horse_ids')
 
         # Connect to the database
         db_session = get_db_session()
