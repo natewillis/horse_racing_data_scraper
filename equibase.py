@@ -616,7 +616,8 @@ def get_equibase_horse_link_from_google(horse):
         try:
             google_results = search(search_string)
             timeout_flag = False
-        except HTTPError:
+        except:
+            print(f'likely a timeout error on {search_string}')
             sleep(600)
 
     # Check result
