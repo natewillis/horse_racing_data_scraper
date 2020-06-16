@@ -99,9 +99,16 @@ def find_trainer_instance_from_item(item, session):
 
 
 def find_horse_instance_from_item(item, session):
-    return session.query(Horses).filter(
-        Horses.horse_name == item['horse_name']
-    ).first()
+    if 'horse_id' in item:
+        return session.query(Horses).filter(
+            Horses.horse_id == item['horse_id']
+        ).first()
+    elif 'horse_name' in item:
+        return session.query(Horses).filter(
+            Horses.horse_name == item['horse_name']
+        ).first()
+    else:
+        return None
 
 
 def find_horse_instance_from_item_and_race(item, race, session):

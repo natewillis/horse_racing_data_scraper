@@ -735,11 +735,18 @@ def load_equibase_horse_data_into_database(data, session, existing_race=None):
     horse_item = data['horse_item']
     if existing_race is not None:
         horse = find_horse_instance_from_item_and_race(horse_item, existing_race, session)
+        if horse is None:
+            print(f'{horse_item} with existing race {existing_race} didnt return an item')
+            return
+        else:
+            horse_item['horse_id'] = horse.horse_id
+            horse = load_item_into_database(horse_item, 'horse', session)
+
     else:
         horse = load_item_into_database(horse_item, 'horse', session)
-    if horse is None:
-        print(f'{horse_item} with existing race {existing_race} didnt return an item')
-        return
+        if horse is None:
+            print(f'{horse_item} with existing race {existing_race} didnt return an item')
+            return
 
     # Cycle through results items
     for results_item in data['entry_items']:
