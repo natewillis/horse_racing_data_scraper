@@ -614,19 +614,25 @@ def get_equibase_horse_link_from_google(horse):
     timeout_flag = True
     while timeout_flag:
         try:
-            google_results = search(search_string)
+
+            # Perform search
+            google_results = search(search_string, num=2, stop=2, pause=2)
+
+            # Check result
+            for result in google_results:
+                equibase_horse_id, equibase_registry = parse_equibase_horse_detail_link_for_id(result)
+
+                # If its a valid link, return it
+                if equibase_horse_id is not None and equibase_registry is not None:
+                    return result
+
+            # Stop iterating
             timeout_flag = False
-        except:
+
+        except HTTPError:
+
             print(f'likely a timeout error on {search_string}')
             sleep(600)
-
-    # Check result
-    for result in google_results:
-        equibase_horse_id, equibase_registry = parse_equibase_horse_detail_link_for_id(result)
-
-        # If its a valid link, return it
-        if equibase_horse_id is not None and equibase_registry is not None:
-            return result
 
     # Return nothing since we never returned a valid link
     return None
