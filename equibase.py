@@ -112,6 +112,7 @@ def get_db_items_from_equibase_whole_card_entry_html(html):
     # Find Track Header
     title_h2 = soup.select_one('h2.track-info.center')
     if not title_h2:
+        print('couldnt find title h2')
         return return_list
 
     # Extract track code
@@ -119,6 +120,7 @@ def get_db_items_from_equibase_whole_card_entry_html(html):
     if track_name_a:
         track_url = track_name_a['href']
     else:
+        print('couldnt find track href')
         return return_list
 
     # Regex to get track code
@@ -127,6 +129,7 @@ def get_db_items_from_equibase_whole_card_entry_html(html):
     if track_url_search_obj:
         track_code = track_url_search_obj.group(1)
     else:
+        print('couldnt find track code')
         return return_list
 
     # Extract Race Date
@@ -134,12 +137,16 @@ def get_db_items_from_equibase_whole_card_entry_html(html):
     if race_date_div:
         card_date = datetime.datetime.strptime(race_date_div.text.strip(), '%B %d, %Y').date()
     else:
+        print('couldnt find card date')
         return return_list
 
     # Get each race div
     race_entries_divs = soup.select('div.c-entries-data')
     if not race_entries_divs:
+        print('couldnt find entry divs')
         return return_list
+    else:
+        pass
 
     for race_entries_div in race_entries_divs:
 
@@ -156,12 +163,13 @@ def get_db_items_from_equibase_whole_card_entry_html(html):
         race_number = -1
         race_number_spans = race_entries_div.select('span.whitetxt.allcaps')
         for race_number_span in race_number_spans:
-            race_number_pattern = r'Race (\d+) -'
+            race_number_pattern = r'Race (\d+)'
             race_number_search_obj = re.search(race_number_pattern, race_number_span.text)
             if race_number_search_obj:
                 race_number = int(race_number_search_obj.group(1).strip())
                 break
         if race_number <= 0:
+            print('couldnt find race number')
             continue
 
         # Create race item
@@ -175,9 +183,32 @@ def get_db_items_from_equibase_whole_card_entry_html(html):
         # Entry Table
         entry_table = race_entries_div.select_one('table')
         if not entry_table:
+            print('couldnt find entry table')
             continue
+        entry_table_head = entry_table.select_one('thead')
+        if not entry_table_head:
+            print('couldnt find entry table head')
         entry_table_body = entry_table.select_one('tbody')
         if not entry_table_body:
+            print('couldnt find entry table body')
+            continue
+
+        # figure out columns
+        horse_column = -1
+        jockey_column = -1
+        trainer_column = -1
+        header_ths = entry_table_head.findAll('th')
+        total_columns = len(header_ths)
+        for column_index, entry_th in enumerate(header_ths):
+            if 'Horse' in entry_th.text:
+                horse_column = column_index
+            if 'Jockey' in entry_th.text:
+                jockey_column = column_index
+            if 'Trainer' in entry_th.text:
+                trainer_column = column_index
+
+        if horse_column < 0 or jockey_column < 0 or trainer_column < 0 or total_columns < 0:
+            print('couldnt parse header for columns')
             continue
 
         # Iterate through the entries
@@ -196,23 +227,18 @@ def get_db_items_from_equibase_whole_card_entry_html(html):
             if entry_tr.has_attr('class'):
                 if entry_tr['class'][0] == 'scratch':
                     scratch_flag = True
+            if scratch_flag:
+                continue
 
             # Break up cells
             entry_tds = entry_tr.findAll('td')
-            if len(entry_tds) < 9 and not scratch_flag:
-                print('not enough tds for non scratch')
-                print(entry_tr)
-                continue
-            elif len(entry_tds) < 6 and scratch_flag:
-                print('not enough tds for non scratch')
-                print(entry_tr)
+            future_race_flag = False
+            if len(entry_tds) != total_columns:
+                print(f'there are {len(entry_tds)} but there should be {total_columns}')
                 continue
 
             # Get horse details
-            if scratch_flag:
-                horse_name_td = entry_tds[1]
-            else:
-                horse_name_td = entry_tds[2]
+            horse_name_td = entry_tds[horse_column]
             horse_name_a = horse_name_td.find('a')
             if horse_name_a:
 
@@ -239,7 +265,7 @@ def get_db_items_from_equibase_whole_card_entry_html(html):
 
             if not scratch_flag:
                 # Get jockey details
-                jockey_td = entry_tds[7]
+                jockey_td = entry_tds[jockey_column]
                 jockey_name_a = jockey_td.find('a')
                 if jockey_name_a:
                     # Jockey name
@@ -252,6 +278,7 @@ def get_db_items_from_equibase_whole_card_entry_html(html):
                         if jockey_name_search_obj.group(4) is not None:
                             jockey_last_name += jockey_name_search_obj.group(4)
                     else:
+                        print('no jockey name')
                         continue
 
                     # Get equibase identifiers
@@ -271,10 +298,11 @@ def get_db_items_from_equibase_whole_card_entry_html(html):
                         }
 
                     else:
+                        print('no jockey link')
                         continue
 
                 # Get trainer details
-                trainer_td = entry_tds[9]
+                trainer_td = entry_tds[trainer_column]
                 trainer_name_a = trainer_td.find('a')
                 if trainer_name_a:
 
@@ -288,6 +316,7 @@ def get_db_items_from_equibase_whole_card_entry_html(html):
                         if trainer_name_search_obj.group(4) is not None:
                             trainer_last_name += trainer_name_search_obj.group(4)
                     else:
+                        print('no trainer name')
                         continue
 
                     # Get equibase identifiers
@@ -307,6 +336,7 @@ def get_db_items_from_equibase_whole_card_entry_html(html):
                         }
 
                     else:
+                        print('no trainer link')
                         continue
 
             # Append to horse items
@@ -582,7 +612,7 @@ def equibase_entries_link_getter(html):
     soup = BeautifulSoup(html, 'html.parser')
 
     # Find links
-    link_as = soup.findAll('a', href= re.compile(r'/static/entry/.*[A-Z]{2}\d{6}'))
+    link_as = soup.findAll('a', href=re.compile(r'/static/entry/.*[A-Z]{2}\d{6}'))
 
     # process links
     for link_a in link_as:
