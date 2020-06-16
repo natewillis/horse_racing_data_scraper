@@ -6,6 +6,7 @@ chardet==3.0.4
 click==7.1.2
 cssselect==1.1.0
 fake-useragent==0.1.11
+google==2.0.3
 idna==2.9
 lxml==4.5.1
 numpy==1.18.4
