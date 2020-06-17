@@ -265,3 +265,12 @@ class PointsOfCall(base):
     distance = Column('distance', Float)
     position = Column('position', Integer)
     lengths_back = Column('lengths_back', Float)
+
+
+class DatabaseStatistics(base):
+    __tablename__ = "database_statistics"
+
+    database_statistic_id = Column('database_statistic_id', Integer, primary_key=True)
+    statistic_name = Column('statistic_name', String)
+    statistic_value = Column('statistic_value', Float)
+    statistic_date = Column('statistic_date', DateTime)

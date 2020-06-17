@@ -25,6 +25,8 @@ from distil import initialize_stealth_browser, shutdown_stealth_browser, get_htm
 from equibase_charts import convert_equibase_result_chart_pdf_to_item, get_equibase_embedded_chart_link_from_race
 from settings import EQUIBASE_PDF_PATH
 from pprint import pprint
+from db_stats import record_all_statistics
+
 
 def test_rp():
     race_url = 'https://www.racingpost.com/results/272/gulfstream-park/2020-01-25/750172'
@@ -1313,6 +1315,20 @@ if __name__ == '__main__':
 
         # run code
         scrape_equibase_charts(db_session)
+
+        # close database
+        shutdown_session_and_engine(db_session)
+
+    if args.mode in ('record_statistics', 'all'):
+
+        # Mode Tracking
+        modes_run.append('record_statistics')
+
+        # Get database
+        db_session = get_db_session()
+
+        # run code
+        record_all_statistics(db_session)
 
         # close database
         shutdown_session_and_engine(db_session)

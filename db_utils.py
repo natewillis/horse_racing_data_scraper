@@ -5,7 +5,7 @@ from sqlalchemy.sql import null
 from settings import DATABASE
 from sqlalchemy.ext.declarative import declarative_base
 from models import Races, Horses, Entries, EntryPools, Payoffs, Probables, Tracks, Jockeys, Owners, Trainers, \
-    Picks, BettingResults, Workouts, base, AnalysisProbabilities, PointsOfCall, FractionalTimes
+    Picks, BettingResults, Workouts, base, AnalysisProbabilities, PointsOfCall, FractionalTimes, DatabaseStatistics
 from sqlalchemy import func
 
 
@@ -205,6 +205,13 @@ def find_point_of_call_instance_from_item(item, session):
     ).first()
 
 
+def find_database_statistic_instance_from_item(item, session):
+    return session.query(DatabaseStatistics).filter(
+        DatabaseStatistics.statistic_name == item['statistic_name'],
+        DatabaseStatistics.statistic_date == item['statistic_date'],
+    ).first()
+
+
 def find_instance_from_item(item, item_type, session):
 
     # Instance Finder Dict
@@ -225,6 +232,7 @@ def find_instance_from_item(item, item_type, session):
         'analysis_probability': find_analysis_probability_instance_from_item,
         'fractional_time': find_fractional_time_instance_from_item,
         'point_of_call': find_point_of_call_instance_from_item,
+        'database_statistic': find_database_statistic_instance_from_item,
     }
 
     # Return instance
@@ -250,7 +258,8 @@ def create_new_instance_from_item(item, item_type, session):
         'analysis_probability': AnalysisProbabilities,
         'betting_result': BettingResults,
         'fractional_time': FractionalTimes,
-        'point_of_call': PointsOfCall
+        'point_of_call': PointsOfCall,
+        'database_statistic': DatabaseStatistics
     }
 
     # Fix any nulls
