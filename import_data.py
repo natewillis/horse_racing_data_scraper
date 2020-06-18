@@ -8,7 +8,7 @@ import random
 from sqlalchemy import or_, and_
 from db_utils import get_db_session, shutdown_session_and_engine, create_new_instance_from_item, \
     load_item_into_database, find_instance_from_item, find_horse_instance_from_item_and_race
-from utils import get_list_of_files, remove_empty_folders, get_files_in_folders, str2bool, approved_track
+from utils import get_list_of_files, remove_empty_folders, get_files_in_folders, str2bool, approved_track, remove_duplicates_preserve_order
 from models import Races, Tracks, Entries, Horses
 import csv
 from drf import create_track_item_from_drf_data, create_race_item_from_drf_data, create_horse_item_from_drf_data, \
@@ -690,36 +690,31 @@ def get_equibase_horse_links_for_entry_horses_without_details(session):
     # Init link list
     link_list = []
 
-    # Last week
-    min_date = datetime.datetime.utcnow() + datetime.timedelta(days=-7)
-    min_date_only = datetime.date(min_date.year, min_date.month, min_date.day)
-
-    # Perform Query
-    horses = session.query(Horses).join(Entries).join(Races).filter(
-        Races.equibase_entries.is_(True),
+    # Get horse details
+    query = session.query(Horses, Races, Entries).filter(
+        Races.race_id == Entries.race_id,
+        Horses.horse_id == Entries.horse_id,
+        Races.drf_entries == True,
         Horses.equibase_horse_id.isnot(None),
-    ).filter(or_(
-        Horses.equibase_horse_detail_scrape_date.is_(None),
-        and_(
-            Races.post_time > datetime.datetime.utcnow(),
-            Horses.equibase_horse_detail_scrape_date < min_date,
-        ),
-        and_(
-            Horses.equibase_horse_detail_scrape_date < Races.post_time,
-            Races.post_time < (datetime.datetime.utcnow() + datetime.timedelta(days=-2))
-        ),
-        and_(
-            Entries.equibase_speed_figure == 999,
-            Races.card_date > min_date_only
+        or_(
+            Horses.equibase_horse_detail_scrape_date.is_(None),
+            and_(
+                (Races.card_date - Horses.equibase_horse_detail_scrape_date) > datetime.timedelta(days=7),
+                Races.card_date <= datetime.date.today()
+            ),
+            and_(
+                (datetime.date.today() - Races.card_date) >= 2,
+                Races.card_date > Horses.equibase_horse_detail_scrape_date
+            )
         )
-    )).all()
+    ).order_by(Races.card_date, Races.track_id, Races.race_number)
 
-    # Create URLs
-    for horse in horses:
+    # Process the query
+    for horse, race, entry in query:
         link_list.append(get_equibase_horse_history_link_from_horse(horse))
 
     # Remove duplicates
-    link_list = list(dict.fromkeys(link_list))
+    link_list = remove_duplicates_preserve_order(link_list)
 
     # Return list
     return link_list

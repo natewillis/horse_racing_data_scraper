@@ -6,6 +6,12 @@ import fractions
 import argparse
 
 
+def remove_duplicates_preserve_order(seq):
+    seen = set()
+    seen_add = seen.add
+    return [x for x in seq if not (x in seen or seen_add(x))]
+
+
 def approved_track(search_track_code):
 
     return search_track_code in ['CD', 'SA', 'BEL', 'DED', ]
