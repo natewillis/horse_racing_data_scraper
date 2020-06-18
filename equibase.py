@@ -2,7 +2,7 @@ from models import Tracks, Horses, Races, Entries
 from bs4 import BeautifulSoup
 import datetime
 import re
-from utils import get_horse_origin_from_name
+from utils import get_horse_origin_from_name, approved_track
 from googlesearch import search
 from time import sleep
 from urllib.error import HTTPError
@@ -626,6 +626,18 @@ def equibase_entries_link_getter(html):
 
         # Remove race card index if necessary
         href = href.replace('RaceCardIndex', '')
+
+        # Check if its an approved track
+        track_code_pattern = r'([A-Z]+)\d+USA'
+        track_code_match_obj = re.search(track_code_pattern, href)
+        if track_code_match_obj:
+            track_code = track_code_match_obj.group(1).strip().upper()
+            if not approved_track(track_code):
+                print(f'{href} is for track code {track_code} which is not in the approved list')
+                continue
+        else:
+            print(f'{href} is malformed so wont be scraped')
+            continue
 
         # Append to link list
         link_list.append(f'http://www.equibase.com/{href}')

@@ -8,7 +8,7 @@ import random
 from sqlalchemy import or_, and_
 from db_utils import get_db_session, shutdown_session_and_engine, create_new_instance_from_item, \
     load_item_into_database, find_instance_from_item, find_horse_instance_from_item_and_race
-from utils import get_list_of_files, remove_empty_folders, get_files_in_folders, str2bool
+from utils import get_list_of_files, remove_empty_folders, get_files_in_folders, str2bool, approved_track
 from models import Races, Tracks, Entries, Horses
 import csv
 from drf import create_track_item_from_drf_data, create_race_item_from_drf_data, create_horse_item_from_drf_data, \
@@ -26,12 +26,6 @@ from equibase_charts import convert_equibase_result_chart_pdf_to_item, get_equib
 from settings import EQUIBASE_PDF_PATH
 from pprint import pprint
 from db_stats import record_all_statistics
-
-
-def test_rp():
-    race_url = 'https://www.racingpost.com/results/272/gulfstream-park/2020-01-25/750172'
-    with urllib.request.urlopen(race_url) as url:
-        print(url.read())
 
 
 def import_track_codes():
@@ -558,7 +552,7 @@ def get_races_with_no_results(session):
 
     # Query Races
     races = session.query(Races).\
-        filter_by(drf_results=False).\
+        filter_by(drf_results=False, drf_entries=True).\
         filter(Races.post_time <= datetime.datetime.utcnow()).all()
 
     # Organize in list
@@ -1003,7 +997,8 @@ def scrape_googles_equibase_horse_detail_links(session, browser):
     ).filter(
         Horses.equibase_horse_id.is_(None)
     ).filter(
-        Races.drf_entries == True
+        Races.drf_entries == True,
+        Races.equibase_entries == True
     ).order_by(Races.card_date).all()
 
     search_strings = []
@@ -1062,9 +1057,18 @@ if __name__ == '__main__':
             db_session = get_db_session()
 
             for current_track in track_data['raceTracks']['allTracks']:
-                print(current_track)
+
+                # Don't collect entries for non-us countries
                 if current_track['country'] != 'USA':
                     continue
+
+                # Only collect entries for approved tracks
+                if not approved_track(current_track['trackId']):
+                    if debug_flag:
+                        print(f'{current_track["trackId"]} is not approved')
+                    continue
+
+                # Loop through entries
                 for card in current_track['cards']:
                     if card['raceDate']['year'] is not None and \
                             card['raceDate']['month'] is not None and \
@@ -1104,8 +1108,19 @@ if __name__ == '__main__':
 
             # Iterate through tracks
             for current_track in track_data:
-                if current_track['country'] == 'USA':
-                    track_data_list.append(get_single_track_data_from_drf(current_track))
+
+                # Prevent non-US tracks
+                if current_track['country'] != 'USA':
+                    continue
+
+                # Only allow approved tracks
+                if not approved_track(current_track['trackId']):
+                    if debug_flag:
+                        print(f'{current_track["trackId"]} is not approved')
+                    continue
+
+                # Get all the data
+                track_data_list.append(get_single_track_data_from_drf(current_track))
 
             # Iterate through tracks
             for race_data in track_data_list:
@@ -1206,7 +1221,7 @@ if __name__ == '__main__':
             whole_card_html = get_html_from_page_with_captcha(browser, equibase_link_url, 'div.race-nav.center')
             db_items = get_db_items_from_equibase_whole_card_entry_html(whole_card_html)
             load_equibase_entries_into_database(db_items, db_session)
-            sleep_number = random.randrange(20, 40)
+            sleep_number = random.randrange(10, 25)
             print(f'Sleeping {sleep_number} seconds')
             time.sleep(sleep_number)
 
@@ -1272,20 +1287,6 @@ if __name__ == '__main__':
 
         # Import Tracks
         import_track_codes()
-
-    if args.mode in ('fix_equibase_horse_registry'):
-
-        # Mode Tracking
-        modes_run.append('fix_equibase_horse_registry')
-
-        # Get database
-        db_session = get_db_session()
-
-        # Fix things
-        fix_horse_registry(db_session)
-
-        # Shut it down
-        shutdown_session_and_engine(db_session)
 
     if args.mode in ('download_equibase_charts', 'all'):
 

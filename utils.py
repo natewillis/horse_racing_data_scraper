@@ -6,6 +6,11 @@ import fractions
 import argparse
 
 
+def approved_track(search_track_code):
+
+    return search_track_code in ['CD', 'SA', 'BEL', 'DED', ]
+
+
 def str2bool(v):
     if isinstance(v, bool):
        return v
