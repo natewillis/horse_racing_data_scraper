@@ -996,7 +996,8 @@ def scrape_googles_equibase_horse_detail_links(session, browser):
         Horses.equibase_horse_id.is_(None)
     ).filter(
         Races.drf_entries == True,
-        Races.equibase_entries == True
+        Races.equibase_entries == True,
+        Entries.scratch_indicator == 'N'
     ).order_by(Races.card_date).all()
 
     search_strings = []

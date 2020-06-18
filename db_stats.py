@@ -1,4 +1,4 @@
-from models import Races, Entries, Horses
+from models import Races, Entries, Horses, Tracks
 import datetime
 from db_utils import load_item_into_database
 from sqlalchemy import or_, and_
@@ -65,13 +65,21 @@ def log_total_number_of_equibase_chart_scraped_races(session):
 def log_total_number_of_missing_equibase_ids(session):
 
     # Get total number of races in the database
-    number_of_horses = session.query(Horses.horse_id.distinct()).join(Entries).join(Races) \
-        .filter(
-            Races.race_id == Entries.race_id,
-            Horses.horse_id == Entries.horse_id,
-            Races.drf_entries == True,
-            Horses.equibase_horse_id.is_(None),
-        ).count()
+    number_of_horses = session.query(
+        Horses, Races, Tracks, Entries
+    ).filter(
+        Horses.horse_id == Entries.horse_id
+    ).filter(
+        Races.race_id == Entries.race_id
+    ).filter(
+        Tracks.track_id == Races.track_id
+    ).filter(
+        Horses.equibase_horse_id.is_(None)
+    ).filter(
+        Races.drf_entries == True,
+        Races.equibase_entries == True,
+        Entries.scratch_indicator == 'N'
+    ).count()
 
     # If it returns a value enter it into the database
     if number_of_horses:
