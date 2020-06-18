@@ -873,13 +873,15 @@ def download_equibase_charts(session, browser):
     # Loop while theres still charts to download
     while session.query(Races).filter(
             Races.equibase_chart_download_date.is_(None),
-            Races.equibase_chart_scrape.isnot(True)
+            Races.equibase_chart_scrape.isnot(True),
+            Races.card_date < datetime.date.today()
     ).count() > 0:
 
         # Get oldest race
         race = session.query(Races).filter(
             Races.equibase_chart_download_date.is_(None),
-            Races.equibase_chart_scrape.isnot(True)
+            Races.equibase_chart_scrape.isnot(True),
+            Races.card_date < datetime.date.today()
         ).order_by(
             Races.card_date
         ).first()
