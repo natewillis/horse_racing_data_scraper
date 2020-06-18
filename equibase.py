@@ -227,18 +227,19 @@ def get_db_items_from_equibase_whole_card_entry_html(html):
             if entry_tr.has_attr('class'):
                 if entry_tr['class'][0] == 'scratch':
                     scratch_flag = True
-            if scratch_flag:
-                continue
 
             # Break up cells
             entry_tds = entry_tr.findAll('td')
             future_race_flag = False
-            if len(entry_tds) != total_columns:
+            if len(entry_tds) != total_columns and not scratch_flag:
                 print(f'there are {len(entry_tds)} but there should be {total_columns}')
                 continue
 
             # Get horse details
-            horse_name_td = entry_tds[horse_column]
+            if scratch_flag:
+                horse_name_td = entry_tds[horse_column-1]
+            else:
+                horse_name_td = entry_tds[horse_column]
             horse_name_a = horse_name_td.find('a')
             if horse_name_a:
 
@@ -258,6 +259,9 @@ def get_db_items_from_equibase_whole_card_entry_html(html):
                         'equibase_horse_id': equibase_id,
                         'equibase_horse_registry': equibase_registry
                     }
+
+                    if scratch_flag:
+                        entry_item['scratch_indicator'] = 'Y'
 
                 else:
                     print('no horse link')
