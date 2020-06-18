@@ -696,6 +696,7 @@ def get_equibase_horse_links_for_entry_horses_without_details(session):
         Horses.horse_id == Entries.horse_id,
         Races.drf_entries == True,
         Horses.equibase_horse_id.isnot(None),
+        Entries.scratch_indicator == 'N',
         or_(
             Horses.equibase_horse_detail_scrape_date.is_(None),
             and_(

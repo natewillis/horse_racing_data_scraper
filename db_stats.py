@@ -94,6 +94,7 @@ def log_total_number_of_remaining_detail_scrapes(session):
         Horses.horse_id == Entries.horse_id,
         Races.drf_entries == True,
         Horses.equibase_horse_id.isnot(None),
+        Entries.scratch_indicator == 'N',
         or_(
             Horses.equibase_horse_detail_scrape_date.is_(None),
             and_(
