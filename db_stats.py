@@ -1,7 +1,7 @@
 from models import Races, Entries, Horses
 import datetime
 from db_utils import load_item_into_database
-from sqlalchemy import or_
+from sqlalchemy import or_, and_
 
 def log_total_number_of_races(session):
 
@@ -88,18 +88,24 @@ def log_total_number_of_missing_equibase_ids(session):
 
 def log_total_number_of_remaining_detail_scrapes(session):
 
-    # Get total number of races in the database
-    number_of_horses = session.query(Horses.horse_id.distinct()).join(Entries).join(Races) \
-        .filter(
-            Races.race_id == Entries.race_id,
-            Horses.horse_id == Entries.horse_id,
-            Races.drf_entries == True,
-            Races.card_date < datetime.date.today(),
-            or_(
-                (Horses.equibase_horse_detail_scrape_date - Races.card_date) <= datetime.timedelta(days=-7),
-                Horses.equibase_horse_detail_scrape_date.is_(None)
+    # Get horse count
+    number_of_horses = session.query(Horses, Races, Entries).filter(
+        Races.race_id == Entries.race_id,
+        Horses.horse_id == Entries.horse_id,
+        Races.drf_entries == True,
+        Horses.equibase_horse_id.isnot(None),
+        or_(
+            Horses.equibase_horse_detail_scrape_date.is_(None),
+            and_(
+                (Races.card_date - Horses.equibase_horse_detail_scrape_date) > datetime.timedelta(days=7),
+                Races.card_date <= datetime.date.today()
             ),
-        ).count()
+            and_(
+                (datetime.date.today() - Races.card_date) >= 2,
+                Races.card_date > Horses.equibase_horse_detail_scrape_date
+            )
+        )
+    ).count()
 
     # If it returns a value enter it into the database
     if number_of_horses:
