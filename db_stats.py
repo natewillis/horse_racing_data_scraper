@@ -34,7 +34,7 @@ def log_total_number_of_drf_entry_races(session):
     if number_of_races:
         # Create item
         stat_item = {
-            'statistic_name': 'drf_entry_races_totals',
+            'statistic_name': 'drf_entry_races_total',
             'statistic_date': datetime.datetime.utcnow(),
             'statistic_value': number_of_races,
         }
