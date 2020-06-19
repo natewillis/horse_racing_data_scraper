@@ -283,6 +283,8 @@ def get_horse_origin_from_name(horse_name_with_origin):
 
     # Initialize Return
     horse_name = horse_name_with_origin.strip().upper()
+    if horse_name[0:3] == 'DQ-':
+        horse_name = horse_name[3:]
     country = 'USA'
     state = None
 
