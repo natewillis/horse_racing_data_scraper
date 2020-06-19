@@ -3,6 +3,7 @@ import datetime
 from db_utils import load_item_into_database
 from sqlalchemy import or_, and_
 
+
 def log_total_number_of_races(session):
 
     # Get total number of races in the database
@@ -13,7 +14,7 @@ def log_total_number_of_races(session):
 
         # Create item
         stat_item = {
-            'statistic_name': 'total_number_of_races',
+            'statistic_name': 'number_of_races_total',
             'statistic_date': datetime.datetime.utcnow(),
             'statistic_value': number_of_races,
         }
@@ -33,7 +34,7 @@ def log_total_number_of_drf_entry_races(session):
     if number_of_races:
         # Create item
         stat_item = {
-            'statistic_name': 'total_number_of_drf_entry_races',
+            'statistic_name': 'drf_entry_races_totals',
             'statistic_date': datetime.datetime.utcnow(),
             'statistic_value': number_of_races,
         }
@@ -53,7 +54,27 @@ def log_total_number_of_equibase_chart_scraped_races(session):
 
         # Create item
         stat_item = {
-            'statistic_name': 'total_number_of_equibase_chart_scraped_races',
+            'statistic_name': 'equibase_chart_scraped_race_total',
+            'statistic_date': datetime.datetime.utcnow(),
+            'statistic_value': number_of_races,
+        }
+
+        # Write to db
+        stat = load_item_into_database(stat_item, 'database_statistic', session)
+
+
+def log_total_number_of_horse_detail_races(session):
+    # Get total number of races in the database
+    number_of_races = session.query(Races.race_id) \
+        .filter(Races.equibase_horse_results == True) \
+        .count()
+
+    # If it returns a value enter it into the database
+    if number_of_races:
+
+        # Create item
+        stat_item = {
+            'statistic_name': 'equibase_horse_detail_race_total',
             'statistic_date': datetime.datetime.utcnow(),
             'statistic_value': number_of_races,
         }
@@ -85,7 +106,7 @@ def log_total_number_of_missing_equibase_ids(session):
     if number_of_horses:
         # Create item
         stat_item = {
-            'statistic_name': 'total_number_of_missing_equibase_ids',
+            'statistic_name': 'equibase_id_backlog',
             'statistic_date': datetime.datetime.utcnow(),
             'statistic_value': number_of_horses,
         }
@@ -120,7 +141,7 @@ def log_total_number_of_remaining_detail_scrapes(session):
     if number_of_horses:
         # Create item
         stat_item = {
-            'statistic_name': 'total_number_of_remaining_detail_scrapes',
+            'statistic_name': 'detail_scrape_backlog',
             'statistic_date': datetime.datetime.utcnow(),
             'statistic_value': number_of_horses,
         }
@@ -129,8 +150,35 @@ def log_total_number_of_remaining_detail_scrapes(session):
         stat = load_item_into_database(stat_item, 'database_statistic', session)
 
 
+def log_total_number_of_remaining_chart_downloads(session):
+
+    # Get horse count
+    number_of_charts = session.query(Races.card_date, Races.track_id).filter(
+            or_(
+                Races.equibase_chart_download_date.is_(None),
+                Races.equibase_chart_download_date < datetime.datetime(year=1910, month=1, day=1)
+            ),
+            Races.equibase_chart_scrape.isnot(True),
+            Races.card_date < datetime.date.today()
+        ).group_by(Races.card_date, Races.track_id).count()
+
+    # If it returns a value enter it into the database
+    if number_of_charts:
+        # Create item
+        stat_item = {
+            'statistic_name': 'chart_download_backlog',
+            'statistic_date': datetime.datetime.utcnow(),
+            'statistic_value': number_of_charts,
+        }
+
+        # Write to db
+        stat = load_item_into_database(stat_item, 'database_statistic', session)
+
+
 def record_all_statistics(session):
-    
+
+    log_total_number_of_remaining_chart_downloads(session)
+    log_total_number_of_horse_detail_races(session)
     log_total_number_of_missing_equibase_ids(session)
     log_total_number_of_equibase_chart_scraped_races(session)
     log_total_number_of_drf_entry_races(session)
