@@ -185,7 +185,11 @@ def process_race_string(race_string):
 
     # Race Date
     race_date_string = split_race_string[1]
-    return_race_dict['race_date'] = datetime.datetime.strptime(race_date_string, '%B %d, %Y').date()
+    try:
+        return_race_dict['race_date'] = datetime.datetime.strptime(race_date_string, '%B %d, %Y').date()
+    except ValueError:
+        print(f'{race_string} does not match our known format')
+        return None
 
     # Race Number
     race_number_string = split_race_string[2]
