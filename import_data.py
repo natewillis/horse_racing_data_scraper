@@ -869,6 +869,64 @@ def fix_horse_registry(session):
     session.commit()
 
 
+def download_problem_equibase_charts(session, browser):
+
+    # Query the database for the problem children
+    query = session.query(Races.card_date, Races.track_id).filter(
+        Races.equibase_chart_download_date < datetime.datetime(year=1910, month=1, day=1),
+        Races.equibase_chart_scrape.isnot(True),
+        Races.card_date < datetime.date.today()
+    ).group_by(Races.card_date, Races.track_id)
+
+    # Loop through missing charts and redownload them
+    for card_date, track_id in query:
+
+        # Get the first race in order to create a link to download
+        race = session.query(Races).filter(
+            Races.card_date == card_date,
+            Races.track_id == track_id
+        ).first()
+
+        # If we have a race to download, go for it
+        if race is not None:
+
+            # Create the link
+            chart_link = get_equibase_embedded_chart_link_from_race(session, race)
+
+            # Attempt the download
+            pdf_path = None
+            try:
+                pdf_path = get_html_from_page_with_captcha(browser, chart_link, 'object[type][data]')
+            except (KeyboardInterrupt, SystemExit):  # handle control c
+                raise
+            except:
+                if debug_flag:
+                    raise
+                else:
+                    print(f'an exception happened during download of {chart_link}')
+                    pdf_path = None
+
+            # Verify file download
+            if pdf_path:
+                if os.path.exists(pdf_path):
+                    download_date = datetime.datetime.now()
+                    print(f'Successfully downloaded {pdf_path}')
+                else:
+                    download_date = datetime.datetime(year=1900, month=1, day=1)
+            else:
+                download_date = datetime.datetime(year=1900, month=1, day=1)
+
+            # Write confirmation of download to database
+            downloaded_races = session.query(Races).filter(Races.card_date == race.card_date,
+                                                           Races.track_id == race.track_id).all()
+            for downloaded_race in downloaded_races:
+                downloaded_race.equibase_chart_download_date = download_date
+                session.commit()
+
+            # Pause because were nice
+            time.sleep(15)
+
+
 def download_equibase_charts(session, browser):
 
     # Loop while theres still charts to download
@@ -1333,19 +1391,27 @@ if __name__ == '__main__':
         # close database
         shutdown_session_and_engine(db_session)
 
-    if args.mode in ('test'):
+    if args.mode in ('retry_equibase_chart_backlog'):
 
         # Mode Tracking
-        modes_run.append('scrape_equibase_charts')
+        modes_run.append('retry_equibase_chart_backlog')
 
         # Get database
         db_session = get_db_session()
 
-        # run code
-        scrape_equibase_charts(db_session)
+        # Initialize browser
+        browser = initialize_stealth_browser()
 
-        # close database
+        # run code
+        download_problem_equibase_charts(db_session, browser)
+
+        # shut things down
         shutdown_session_and_engine(db_session)
+        shutdown_stealth_browser(browser)
+
+    if args.mode in ('test'):
+
+        pass
 
     if len(modes_run) == 0:
 
