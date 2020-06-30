@@ -116,6 +116,8 @@ def load_drf_odds_data_into_database(data, scrape_time, session):
 
     # Race Info
     race_item = create_race_item_from_drf_data(data, track, scrape_time)
+    if race_item is None:
+        return
     race = load_item_into_database(race_item, 'race', session)
     if race is None:
         return
