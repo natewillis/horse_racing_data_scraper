@@ -14,7 +14,7 @@ def remove_duplicates_preserve_order(seq):
 
 def approved_track(search_track_code):
 
-    return search_track_code in ['CD', 'SA', 'BEL', 'DED', ]
+    return search_track_code in ['CD', 'SA', 'BEL', 'DED', 'PRM', 'EVD']
 
 
 def str2bool(v):

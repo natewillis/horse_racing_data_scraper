@@ -85,6 +85,10 @@ def create_race_item_from_drf_data(data, track, scrape_time):
     item['distance'] = convert_drf_distance_description_to_furlongs(data['distanceDescription'])
     if item['distance'] <= 0:
         return
+    # No more quarterhorses
+    if item['distance'] <= 4:
+        print(f'the distance of {item["distance"]} furlongs is a quarterhorse race and will not be scraped')
+        return
     item['age_restriction'] = data['ageRestrictionDescription']
     item['race_restriction'] = data['raceRestrictionDescription']
     item['sex_restriction'] = data['sexRestrictionDescription']
