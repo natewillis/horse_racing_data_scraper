@@ -33,5 +33,5 @@ stem==1.8.0
 tqdm==4.46.0
 urllib3==1.25.9
 websocket-client==0.57.0
-websockets==8.1
+websockets==9.1
 word2number==1.1
