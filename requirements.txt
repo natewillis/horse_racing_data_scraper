@@ -9,7 +9,7 @@ fake-useragent==0.1.11
 google==2.0.3
 idna==2.9
 lxml==4.5.1
-numpy==1.18.4
+numpy==1.22.0
 opencv-python==4.2.0.34
 pdfminer.six==20200517
 pdfquery==0.4.3
